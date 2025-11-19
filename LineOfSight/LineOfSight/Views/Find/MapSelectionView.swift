@@ -324,7 +324,7 @@ struct LocationInfoCard: View {
             }
             
             HStack {
-                Label("\(Int(location.elevation))m", systemImage: "mountain.2")
+                Label(String(format: "%.0fm elevation", location.elevation), systemImage: "mountain.2")
                     .font(.caption)
                     .foregroundColor(.secondary)
                 
@@ -339,6 +339,11 @@ struct LocationInfoCard: View {
                 HStack(spacing: 4) {
                     Image(systemName: location.source.icon)
                     Text(location.precision.displayName)
+                    
+                    if viewModel.isLoading {
+                        Text("• Fetching elevation...")
+                            .foregroundColor(.orange)
+                    }
                 }
                 .font(.caption2)
                 .foregroundColor(.secondary)

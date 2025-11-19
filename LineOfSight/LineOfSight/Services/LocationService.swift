@@ -96,11 +96,28 @@ class LocationService: NSObject, ObservableObject {
         }
     }
     
-    /// Get elevation for a specific coordinate using external service
+    /// Get elevation for a specific coordinate using Open-Elevation API
     func getElevation(for coordinate: CLLocationCoordinate2D) async throws -> Double {
-        // For now, return a default elevation
-        // In production, this would call an elevation API service
-        return 0.0
+        let urlString = "https://api.open-elevation.com/api/v1/lookup?locations=\(coordinate.latitude),\(coordinate.longitude)"
+        
+        guard let url = URL(string: urlString) else {
+            throw LocationError.elevationServiceUnavailable
+        }
+        
+        let (data, response) = try await URLSession.shared.data(from: url)
+        
+        guard let httpResponse = response as? HTTPURLResponse,
+              httpResponse.statusCode == 200 else {
+            throw LocationError.elevationServiceUnavailable
+        }
+        
+        let elevationResponse = try JSONDecoder().decode(OpenElevationResponse.self, from: data)
+        
+        guard let result = elevationResponse.results.first else {
+            throw LocationError.elevationServiceUnavailable
+        }
+        
+        return Double(result.elevation)
     }
     
     /// Calculate distance between two coordinates
@@ -167,6 +184,17 @@ extension LocationService: @preconcurrency CLLocationManagerDelegate {
             break
         }
     }
+}
+
+// MARK: - Open-Elevation API Models
+struct OpenElevationResponse: Codable {
+    let results: [OpenElevationResult]
+}
+
+struct OpenElevationResult: Codable {
+    let latitude: Double
+    let longitude: Double
+    let elevation: Int
 }
 
 // MARK: - LocationError

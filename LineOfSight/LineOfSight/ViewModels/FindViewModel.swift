@@ -178,12 +178,12 @@ class FindViewModel: ObservableObject {
     }
     
     private func getElevation(for coordinate: CLLocationCoordinate2D) async throws -> Double {
-        // Try to use the location service's elevation method first
+        // Try to use the location service's Open-Elevation API
         do {
             return try await locationService.getElevation(for: coordinate)
         } catch {
-            // If that fails, use a basic estimation based on coordinate
-            // This is a very rough approximation and should be replaced with a real elevation service
+            // If the API fails, use a basic estimation as fallback
+            print("Open-Elevation API failed: \(error.localizedDescription). Using estimation.")
             let elevation = estimateElevationFromCoordinate(coordinate)
             return elevation
         }
