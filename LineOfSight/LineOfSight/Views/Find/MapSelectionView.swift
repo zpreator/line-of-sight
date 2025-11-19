@@ -7,6 +7,7 @@
 
 import SwiftUI
 import MapKit
+import UIKit
 
 struct MapSelectionView: View {
     @StateObject private var viewModel = FindViewModel()
@@ -17,20 +18,13 @@ struct MapSelectionView: View {
     var body: some View {
         ZStack {
             // Main Map View
-            Map(coordinateRegion: $viewModel.mapRegion, 
-                interactionModes: [.pan, .zoom],
-                showsUserLocation: true,
-                annotationItems: viewModel.selectedLocation != nil ? [viewModel.selectedLocation!] : []) { location in
-                MapAnnotation(coordinate: location.coordinate) {
-                    LocationPin(location: location)
+            InteractiveMapView(
+                region: $viewModel.mapRegion,
+                selectedLocation: viewModel.selectedLocation,
+                onLocationSelected: { coordinate in
+                    viewModel.selectLocation(at: coordinate)
                 }
-            }
-            .onTapGesture { location in
-                // Convert tap location to coordinate
-                // This is a simplified approach - in production would need proper coordinate conversion
-                let coordinate = viewModel.mapRegion.center
-                viewModel.selectLocation(at: coordinate)
-            }
+            )
             .ignoresSafeArea()
             
             // Overlay Controls
@@ -164,6 +158,124 @@ struct MapSelectionView: View {
             }
         }
         .navigationBarHidden(true)
+    }
+    
+}
+
+// MARK: - Interactive Map View
+
+struct InteractiveMapView: UIViewRepresentable {
+    @Binding var region: MKCoordinateRegion
+    let selectedLocation: Location?
+    let onLocationSelected: (CLLocationCoordinate2D) -> Void
+    
+    func makeUIView(context: Context) -> MKMapView {
+        let mapView = MKMapView()
+        mapView.delegate = context.coordinator
+        mapView.showsUserLocation = true
+        mapView.userTrackingMode = .none
+        
+        // Add tap gesture recognizer
+        let tapGesture = UITapGestureRecognizer(
+            target: context.coordinator,
+            action: #selector(Coordinator.handleMapTap(_:))
+        )
+        mapView.addGestureRecognizer(tapGesture)
+        
+        return mapView
+    }
+    
+    func updateUIView(_ mapView: MKMapView, context: Context) {
+        // Update region if needed
+        if !mapView.region.isEqual(to: region, tolerance: 0.001) {
+            mapView.setRegion(region, animated: true)
+        }
+        
+        // Update annotations
+        mapView.removeAnnotations(mapView.annotations.filter { !($0 is MKUserLocation) })
+        
+        if let location = selectedLocation {
+            let annotation = LocationAnnotation(location: location)
+            mapView.addAnnotation(annotation)
+        }
+    }
+    
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+    
+    class Coordinator: NSObject, MKMapViewDelegate {
+        let parent: InteractiveMapView
+        
+        init(_ parent: InteractiveMapView) {
+            self.parent = parent
+        }
+        
+        @objc func handleMapTap(_ gesture: UITapGestureRecognizer) {
+            let mapView = gesture.view as! MKMapView
+            let touchPoint = gesture.location(in: mapView)
+            let coordinate = mapView.convert(touchPoint, toCoordinateFrom: mapView)
+            
+            // Call the callback with the tapped coordinate
+            parent.onLocationSelected(coordinate)
+        }
+        
+        func mapView(_ mapView: MKMapView, regionDidChangeAnimated animated: Bool) {
+            // Update the binding when the user pans/zooms
+            DispatchQueue.main.async {
+                self.parent.region = mapView.region
+            }
+        }
+        
+        func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
+            guard annotation is LocationAnnotation else {
+                return nil
+            }
+            
+            let identifier = "LocationPin"
+            let annotationView = mapView.dequeueReusableAnnotationView(withIdentifier: identifier) as? MKMarkerAnnotationView
+                ?? MKMarkerAnnotationView(annotation: annotation, reuseIdentifier: identifier)
+            
+            annotationView.annotation = annotation
+            annotationView.markerTintColor = .red
+            annotationView.glyphImage = UIImage(systemName: "mappin")
+            annotationView.canShowCallout = true
+            
+            return annotationView
+        }
+    }
+}
+
+// MARK: - Location Annotation
+
+class LocationAnnotation: NSObject, MKAnnotation {
+    let location: Location
+    
+    var coordinate: CLLocationCoordinate2D {
+        return location.coordinate
+    }
+    
+    var title: String? {
+        return location.name ?? "Selected Location"
+    }
+    
+    var subtitle: String? {
+        return String(format: "%.6f, %.6f", location.coordinate.latitude, location.coordinate.longitude)
+    }
+    
+    init(location: Location) {
+        self.location = location
+    }
+}
+
+// MARK: - MKCoordinateRegion Extension
+
+extension MKCoordinateRegion {
+    func isEqual(to other: MKCoordinateRegion, tolerance: Double) -> Bool {
+        return abs(center.latitude - other.center.latitude) < tolerance &&
+               abs(center.longitude - other.center.longitude) < tolerance &&
+               abs(span.latitudeDelta - other.span.latitudeDelta) < tolerance &&
+               abs(span.longitudeDelta - other.span.longitudeDelta) < tolerance
     }
 }
 

@@ -178,9 +178,36 @@ class FindViewModel: ObservableObject {
     }
     
     private func getElevation(for coordinate: CLLocationCoordinate2D) async throws -> Double {
-        // For now, return a placeholder elevation
-        // In production, this would call a real elevation service
-        return Double.random(in: 0...1000)
+        // Try to use the location service's elevation method first
+        do {
+            return try await locationService.getElevation(for: coordinate)
+        } catch {
+            // If that fails, use a basic estimation based on coordinate
+            // This is a very rough approximation and should be replaced with a real elevation service
+            let elevation = estimateElevationFromCoordinate(coordinate)
+            return elevation
+        }
+    }
+    
+    private func estimateElevationFromCoordinate(_ coordinate: CLLocationCoordinate2D) -> Double {
+        // Very basic elevation estimation based on geographic patterns
+        // This is just for demo purposes and should be replaced with real data
+        
+        // Check if we're near known mountain ranges or sea level areas
+        let latitude = abs(coordinate.latitude)
+        let _ = abs(coordinate.longitude)
+        
+        // Ocean areas - close to sea level
+        if latitude < 10 { return Double.random(in: 0...50) }
+        
+        // Mountain regions (very rough approximation)
+        if latitude > 40 && latitude < 50 {
+            // Could be mountainous regions like Alps, Rockies, etc.
+            return Double.random(in: 200...2000)
+        }
+        
+        // Default elevation for most populated areas
+        return Double.random(in: 50...500)
     }
     
     private func calculateAlignmentEvents() -> [AlignmentEvent] {
