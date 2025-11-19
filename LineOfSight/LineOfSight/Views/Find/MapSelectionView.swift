@@ -10,10 +10,11 @@ import MapKit
 import UIKit
 
 struct MapSelectionView: View {
+    let calculationStore: CalculationStore
+    @Binding var selectedTab: Int
     @StateObject private var viewModel = FindViewModel()
     @State private var showingCelestialObjectPicker = false
     @State private var showingDatePicker = false
-    @State private var showingCalculationResults = false
     
     var body: some View {
         ZStack {
@@ -107,7 +108,10 @@ struct MapSelectionView: View {
                     // Calculate Button
                     if viewModel.selectedLocation != nil {
                         Button(action: {
-                            showingCalculationResults = true
+                            if let calculation = viewModel.calculateAlignment() {
+                                calculationStore.setCurrentCalculation(calculation)
+                                selectedTab = 1 // Navigate to Results tab
+                            }
                         }) {
                             HStack {
                                 Image(systemName: "scope")
@@ -152,11 +156,7 @@ struct MapSelectionView: View {
         .sheet(isPresented: $showingDatePicker) {
             DatePickerView(selectedDate: $viewModel.targetDate)
         }
-        .sheet(isPresented: $showingCalculationResults) {
-            if let calculation = viewModel.calculateAlignment() {
-                CalculationResultsView(calculation: calculation)
-            }
-        }
+
         .navigationBarHidden(true)
     }
     
@@ -465,43 +465,34 @@ struct DatePickerView: View {
 struct CalculationResultsView: View {
     let calculation: AlignmentCalculation
     @Environment(\.dismiss) private var dismiss
+    @State private var selectedTab = 0
     
     var body: some View {
         NavigationView {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    Text("Calculation Results")
-                        .font(.largeTitle)
-                        .bold()
-                    
-                    // Summary Card
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Summary")
-                            .font(.headline)
-                        
-                        HStack {
-                            Image(systemName: calculation.celestialObject.type.icon)
-                            Text(calculation.celestialObject.name)
-                            Text("alignment with")
-                            Text(calculation.landmark.name ?? "Selected location")
-                        }
-                        .foregroundColor(.secondary)
-                        
-                        Text("Calculated for \(calculation.targetDate, style: .date)")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                    .padding()
-                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
-                    
-                    // Placeholder for future detailed results
-                    Text("Detailed alignment calculations and optimal positions will be displayed here.")
-                        .foregroundColor(.secondary)
-                        .padding()
-                        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+            VStack {
+                // Tab Picker
+                Picker("View", selection: $selectedTab) {
+                    Text("Timeline").tag(0)
+                    Text("Best Times").tag(1)
+                    Text("Positions").tag(2)
                 }
+                .pickerStyle(.segmented)
                 .padding()
+                
+                // Content based on selected tab
+                TabView(selection: $selectedTab) {
+                    TimelineView(calculation: calculation)
+                        .tag(0)
+                    
+                    BestTimesView(calculation: calculation)
+                        .tag(1)
+                    
+                    OptimalPositionsView(calculation: calculation)
+                        .tag(2)
+                }
+                .tabViewStyle(.page(indexDisplayMode: .never))
             }
+            .navigationTitle("\(calculation.celestialObject.name) Alignment")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
@@ -514,6 +505,338 @@ struct CalculationResultsView: View {
     }
 }
 
+// MARK: - Timeline View
+struct TimelineView: View {
+    let calculation: AlignmentCalculation
+    
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                // Summary Card
+                SummaryCard(calculation: calculation)
+                
+                // Timeline of alignment events
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("24-Hour Timeline")
+                        .font(.headline)
+                        .padding(.horizontal)
+                    
+                    LazyVStack(spacing: 8) {
+                        ForEach(calculation.alignmentEvents.prefix(12)) { event in
+                            TimelineEventCard(event: event, objectName: calculation.celestialObject.name)
+                        }
+                    }
+                    .padding(.horizontal)
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Best Times View
+struct BestTimesView: View {
+    let calculation: AlignmentCalculation
+    
+    var bestEvents: [AlignmentEvent] {
+        calculation.alignmentEvents
+            .filter { $0.alignmentQuality > 0.6 && $0.elevation > 0 }
+            .sorted { $0.alignmentQuality > $1.alignmentQuality }
+            .prefix(5)
+            .map { $0 }
+    }
+    
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                SummaryCard(calculation: calculation)
+                
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Best Alignment Times")
+                        .font(.headline)
+                        .padding(.horizontal)
+                    
+                    if bestEvents.isEmpty {
+                        EmptyStateCard(
+                            icon: "moon.stars",
+                            title: "No Optimal Times Today",
+                            description: "The \(calculation.celestialObject.name.lowercased()) won't have good alignment with your selected location on this date. Try a different date or location."
+                        )
+                        .padding(.horizontal)
+                    } else {
+                        LazyVStack(spacing: 12) {
+                            ForEach(Array(bestEvents.enumerated()), id: \.element.id) { index, event in
+                                BestTimeCard(
+                                    event: event,
+                                    objectName: calculation.celestialObject.name,
+                                    rank: index + 1
+                                )
+                            }
+                        }
+                        .padding(.horizontal)
+                    }
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Optimal Positions View
+struct OptimalPositionsView: View {
+    let calculation: AlignmentCalculation
+    
+    var topPositions: [OptimalPosition] {
+        Array(calculation.optimalPositions.prefix(8))
+    }
+    
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                SummaryCard(calculation: calculation)
+                
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Optimal Photography Positions")
+                        .font(.headline)
+                        .padding(.horizontal)
+                    
+                    Text("These positions offer the best alignment opportunities. Tap a position to see details.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .padding(.horizontal)
+                    
+                    LazyVStack(spacing: 12) {
+                        ForEach(Array(topPositions.enumerated()), id: \.element.id) { index, position in
+                            PositionCard(
+                                position: position,
+                                landmark: calculation.landmark,
+                                rank: index + 1
+                            )
+                        }
+                    }
+                    .padding(.horizontal)
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Supporting Card Views
+
+struct SummaryCard: View {
+    let calculation: AlignmentCalculation
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Image(systemName: calculation.celestialObject.type.icon)
+                    .foregroundColor(colorForCelestialType(calculation.celestialObject.type))
+                    .font(.title2)
+                
+                VStack(alignment: .leading) {
+                    Text(calculation.celestialObject.name)
+                        .font(.headline)
+                    Text("Alignment Analysis")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                
+                Spacer()
+            }
+            
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Target Location")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Text(calculation.landmark.name ?? "Selected Location")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                }
+                
+                Spacer()
+                
+                VStack(alignment: .trailing, spacing: 4) {
+                    Text("Date")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Text(calculation.targetDate, style: .date)
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                }
+            }
+        }
+        .padding()
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+        .padding(.horizontal)
+    }
+    
+    private func colorForCelestialType(_ type: CelestialType) -> Color {
+        switch type {
+        case .sun: return .yellow
+        case .moon: return .gray
+        case .planet: return .blue
+        case .star: return .white
+        }
+    }
+}
+
+struct TimelineEventCard: View {
+    let event: AlignmentEvent
+    let objectName: String
+    
+    var qualityColor: Color {
+        if event.alignmentQuality > 0.8 { return .green }
+        if event.alignmentQuality > 0.6 { return .orange }
+        if event.alignmentQuality > 0.3 { return .yellow }
+        return .red
+    }
+    
+    var body: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(event.timestamp, style: .time)
+                    .font(.headline)
+                
+                Text(String(format: "%.1f° elevation", event.elevation))
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            
+            Spacer()
+            
+            VStack(alignment: .trailing, spacing: 4) {
+                HStack {
+                    Circle()
+                        .fill(qualityColor)
+                        .frame(width: 8, height: 8)
+                    Text(qualityDescription)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                
+                Text(String(format: "%.0f° azimuth", event.azimuth))
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .padding()
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+    }
+    
+    private var qualityDescription: String {
+        if event.elevation < 0 { return "Below horizon" }
+        if event.alignmentQuality > 0.8 { return "Excellent" }
+        if event.alignmentQuality > 0.6 { return "Good" }
+        if event.alignmentQuality > 0.3 { return "Fair" }
+        return "Poor"
+    }
+}
+
+struct BestTimeCard: View {
+    let event: AlignmentEvent
+    let objectName: String
+    let rank: Int
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("#\(rank)")
+                    .font(.headline)
+                    .foregroundColor(.orange)
+                    .frame(width: 30, alignment: .leading)
+                
+                VStack(alignment: .leading) {
+                    Text(event.timestamp, style: .time)
+                        .font(.headline)
+                    Text(event.timestamp, style: .date)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                
+                Spacer()
+                
+                VStack(alignment: .trailing) {
+                    Text(String(format: "%.0f%%", event.alignmentQuality * 100))
+                        .font(.headline)
+                        .foregroundColor(.green)
+                    Text("Quality")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+            
+            HStack {
+                Label(String(format: "%.1f°", event.elevation), systemImage: "arrow.up")
+                Label(String(format: "%.0f°", event.azimuth), systemImage: "safari")
+                Spacer()
+                Label(String(format: "%.1fkm", event.distance / 1000), systemImage: "ruler")
+            }
+            .font(.caption)
+            .foregroundColor(.secondary)
+        }
+        .padding()
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+    }
+}
+
+struct PositionCard: View {
+    let position: OptimalPosition
+    let landmark: Location
+    let rank: Int
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("Position #\(rank)")
+                    .font(.headline)
+                
+                Spacer()
+                
+                Text(String(format: "%.0f%% Quality", position.quality * 100))
+                    .font(.subheadline)
+                    .foregroundColor(.green)
+            }
+            
+            Text(String(format: "%.6f, %.6f", position.coordinate.latitude, position.coordinate.longitude))
+                .font(.caption)
+                .foregroundColor(.secondary)
+            
+            HStack {
+                Label(String(format: "%.1fkm away", position.distance / 1000), systemImage: "ruler")
+                Label(String(format: "%.0f° bearing", position.bearing), systemImage: "safari")
+                Spacer()
+            }
+            .font(.caption)
+            .foregroundColor(.secondary)
+        }
+        .padding()
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+    }
+}
+
+struct EmptyStateCard: View {
+    let icon: String
+    let title: String
+    let description: String
+    
+    var body: some View {
+        VStack(spacing: 12) {
+            Image(systemName: icon)
+                .font(.largeTitle)
+                .foregroundColor(.secondary)
+            
+            Text(title)
+                .font(.headline)
+            
+            Text(description)
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .padding()
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+    }
+}
+
 #Preview {
-    MapSelectionView()
+    MapSelectionView(calculationStore: CalculationStore(), selectedTab: .constant(0))
 }

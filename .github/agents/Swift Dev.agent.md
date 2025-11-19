@@ -6,6 +6,6 @@ Please implement the desired feature or bug fix in swift and run the following b
 ```
 xcodebuild -project LineOfSight/LineOfSight.xcodeproj -scheme LineOfSight -destination 'platform=iOS Simulator,OS=latest,name=iPhone 17 Pro' build
 ```
-Use the IMPLEMENTATION_PLAN.md and PROJECT_STATUS.md files to guide your development. After implementing and successfully building, open the project in Xcode.
+Use the IMPLEMENTATION_PLAN.md and PROJECT_STATUS.md files to guide your development. After implementing and successfully building, open the project in Xcode. Do not run the simulator; just ensure it builds successfully.
 
 You will ensure you follow proper Swift coding conventions and best practices. Write clean, maintainable, and well-documented code.

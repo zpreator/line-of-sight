@@ -110,12 +110,15 @@ class FindViewModel: ObservableObject {
     }
     
     /// Calculate alignment for the selected location and celestial object
-    func calculateAlignment() -> AlignmentCalculation? {
+    func calculateAlignment(name: String = "") -> AlignmentCalculation? {
         guard let location = selectedLocation else { return nil }
+        
+        let calculationName = name.isEmpty ? "Find \(DateFormatter.shortDate.string(from: targetDate))" : name
         
         // Create alignment calculation with current parameters
         let calculation = AlignmentCalculation(
             id: UUID(),
+            name: calculationName,
             landmark: location,
             celestialObject: selectedCelestialObject,
             calculationDate: Date(),
@@ -240,12 +243,19 @@ class FindViewModel: ObservableObject {
                 celestialElevation: position.elevation
             )
             
+            // Calculate distance from photographer to landmark
+            let distance = locationService.distance(
+                from: photographerCoordinate,
+                to: location.coordinate
+            )
+            
             let event = AlignmentEvent(
                 timestamp: eventDate,
                 azimuth: position.azimuth,
                 elevation: position.elevation,
                 photographerPosition: photographerCoordinate,
-                alignmentQuality: calculateAlignmentQuality(elevation: position.elevation)
+                alignmentQuality: calculateAlignmentQuality(elevation: position.elevation),
+                distance: distance
             )
             
             events.append(event)
@@ -349,10 +359,19 @@ class FindViewModel: ObservableObject {
     }
 }
 
+extension DateFormatter {
+    static let shortDate: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .short
+        return formatter
+    }()
+}
+
 // MARK: - Supporting Data Models
 
 struct AlignmentCalculation: Identifiable {
     let id: UUID
+    let name: String
     let landmark: Location
     let celestialObject: CelestialObject
     let calculationDate: Date
@@ -368,6 +387,7 @@ struct AlignmentEvent: Identifiable {
     let elevation: Double
     let photographerPosition: CLLocationCoordinate2D
     let alignmentQuality: Double
+    let distance: Double // Distance from photographer to landmark
 }
 
 struct OptimalPosition: Identifiable {
