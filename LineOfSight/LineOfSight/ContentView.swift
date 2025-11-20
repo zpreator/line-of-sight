@@ -128,7 +128,7 @@ class CalculationStore: ObservableObject {
             calculationDate: Date(), // Save current date as when it was saved
             targetDate: calculation.targetDate,
             alignmentEvents: calculation.alignmentEvents,
-            optimalPositions: calculation.optimalPositions
+            projectionPoints: calculation.projectionPoints
         )
         
         savedCalculations.insert(savedCalculation, at: 0) // Add to beginning
@@ -153,8 +153,6 @@ class CalculationStore: ObservableObject {
 struct ResultsMapView: View {
     let calculation: AlignmentCalculation
     @ObservedObject var calculationStore: CalculationStore
-    @State private var selectedFilter: ResultsFilter = .all
-    @State private var showingSaveAlert = false
     @State private var showingSaveDialog = false
     @State private var saveName = ""
     @State private var mapRegion: MKCoordinateRegion
@@ -170,48 +168,18 @@ struct ResultsMapView: View {
         ))
     }
     
-    var filteredPositions: [OptimalPosition] {
-        switch selectedFilter {
-        case .all:
-            return calculation.optimalPositions
-        case .excellent:
-            return calculation.optimalPositions.filter { $0.quality > 0.8 }
-        case .good:
-            return calculation.optimalPositions.filter { $0.quality > 0.6 }
-        case .nearby:
-            return calculation.optimalPositions.filter { $0.distance < 5000 } // Within 5km
-        }
-    }
-    
     var body: some View {
         VStack(spacing: 0) {
-            // Filter Controls
-            VStack(spacing: 12) {
-                HStack {
-                    Text("Filter Results")
-                        .font(.headline)
-                    Spacer()
-                    Button("Save") {
-                        saveName = calculation.name
-                        showingSaveDialog = true
-                    }
-                    .buttonStyle(.borderedProminent)
+            // Top bar with save button
+            HStack {
+                Text("Projection Results")
+                    .font(.headline)
+                Spacer()
+                Button("Save") {
+                    saveName = calculation.name
+                    showingSaveDialog = true
                 }
-                
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 12) {
-                        ForEach(ResultsFilter.allCases, id: \.self) { filter in
-                            FilterChip(
-                                title: filter.displayName,
-                                count: countForFilter(filter),
-                                isSelected: selectedFilter == filter
-                            ) {
-                                selectedFilter = filter
-                            }
-                        }
-                    }
-                    .padding(.horizontal)
-                }
+                .buttonStyle(.borderedProminent)
             }
             .padding()
             .background(.regularMaterial)
@@ -219,7 +187,6 @@ struct ResultsMapView: View {
             // Map with Results
             ResultsMap(
                 calculation: calculation,
-                positions: filteredPositions,
                 region: $mapRegion
             )
         }
@@ -252,19 +219,6 @@ struct ResultsMapView: View {
                     }
                 }
             }
-        }
-    }
-    
-    private func countForFilter(_ filter: ResultsFilter) -> Int {
-        switch filter {
-        case .all:
-            return calculation.optimalPositions.count
-        case .excellent:
-            return calculation.optimalPositions.filter { $0.quality > 0.8 }.count
-        case .good:
-            return calculation.optimalPositions.filter { $0.quality > 0.6 }.count
-        case .nearby:
-            return calculation.optimalPositions.filter { $0.distance < 5000 }.count
         }
     }
 }
@@ -337,47 +291,8 @@ struct HistoryListView: View {
 
 // MARK: - Supporting Views
 
-enum ResultsFilter: CaseIterable {
-    case all, excellent, good, nearby
-    
-    var displayName: String {
-        switch self {
-        case .all: return "All"
-        case .excellent: return "Excellent"
-        case .good: return "Good+"
-        case .nearby: return "Nearby"
-        }
-    }
-}
-
-struct FilterChip: View {
-    let title: String
-    let count: Int
-    let isSelected: Bool
-    let action: () -> Void
-    
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 4) {
-                Text(title)
-                Text("(\(count))")
-                    .foregroundColor(.secondary)
-            }
-            .font(.subheadline)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-            .background(
-                RoundedRectangle(cornerRadius: 16)
-                                            .fill(isSelected ? .orange : .gray.opacity(0.3))
-            )
-            .foregroundColor(isSelected ? .white : .primary)
-        }
-    }
-}
-
 struct ResultsMap: UIViewRepresentable {
     let calculation: AlignmentCalculation
-    let positions: [OptimalPosition]
     @Binding var region: MKCoordinateRegion
     
     func makeUIView(context: Context) -> MKMapView {
@@ -400,11 +315,27 @@ struct ResultsMap: UIViewRepresentable {
         let landmarkAnnotation = LandmarkAnnotation(location: calculation.landmark)
         mapView.addAnnotation(landmarkAnnotation)
         
-        // Add position annotations
-        for (index, position) in positions.enumerated() {
-            let annotation = PositionAnnotation(position: position, rank: index + 1)
-            mapView.addAnnotation(annotation)
-        }
+        // Add projection point annotations
+        let poiProjection = ProjectionAnnotation(
+            coordinate: calculation.projectionPoints.poiProjection,
+            title: "POI Ground Position",
+            subtitle: "Mountain top projects here",
+            isPOI: true
+        )
+        mapView.addAnnotation(poiProjection)
+        
+        let celestialProjection = ProjectionAnnotation(
+            coordinate: calculation.projectionPoints.celestialProjection,
+            title: "\(calculation.celestialObject.name) Projection",
+            subtitle: "\(calculation.celestialObject.name) line at 10km",
+            isPOI: false
+        )
+        mapView.addAnnotation(celestialProjection)
+        
+        // Draw a line between the two projection points
+        let coordinates = [calculation.projectionPoints.poiProjection, calculation.projectionPoints.celestialProjection]
+        let polyline = MKPolyline(coordinates: coordinates, count: 2)
+        mapView.addOverlay(polyline)
     }
     
     func makeCoordinator() -> Coordinator {
@@ -423,7 +354,7 @@ struct ResultsMap: UIViewRepresentable {
         }
         
         func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
-                            if annotation is LandmarkAnnotation {
+            if annotation is LandmarkAnnotation {
                 let identifier = "Landmark"
                 let annotationView = mapView.dequeueReusableAnnotationView(withIdentifier: identifier) as? MKMarkerAnnotationView
                     ?? MKMarkerAnnotationView(annotation: annotation, reuseIdentifier: identifier)
@@ -436,14 +367,14 @@ struct ResultsMap: UIViewRepresentable {
                 return annotationView
             }
             
-            if let positionAnnotation = annotation as? PositionAnnotation {
-                let identifier = "Position"
+            if let projectionAnnotation = annotation as? ProjectionAnnotation {
+                let identifier = "Projection"
                 let annotationView = mapView.dequeueReusableAnnotationView(withIdentifier: identifier) as? MKMarkerAnnotationView
                     ?? MKMarkerAnnotationView(annotation: annotation, reuseIdentifier: identifier)
                 
                 annotationView.annotation = annotation
-                annotationView.markerTintColor = colorForQuality(positionAnnotation.position.quality)
-                annotationView.glyphText = "\(positionAnnotation.rank)"
+                annotationView.markerTintColor = projectionAnnotation.isPOI ? .systemBlue : .systemOrange
+                annotationView.glyphImage = UIImage(systemName: projectionAnnotation.isPOI ? "mountain.2.fill" : "sun.max.fill")
                 annotationView.canShowCallout = true
                 
                 return annotationView
@@ -452,11 +383,15 @@ struct ResultsMap: UIViewRepresentable {
             return nil
         }
         
-        private func colorForQuality(_ quality: Double) -> UIColor {
-            if quality > 0.8 { return .systemGreen }
-            if quality > 0.6 { return .systemOrange }
-            if quality > 0.3 { return .systemYellow }
-            return .systemRed
+        func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
+            if let polyline = overlay as? MKPolyline {
+                let renderer = MKPolylineRenderer(polyline: polyline)
+                renderer.strokeColor = .systemPurple
+                renderer.lineWidth = 3
+                renderer.lineDashPattern = [4, 8]
+                return renderer
+            }
+            return MKOverlayRenderer(overlay: overlay)
         }
     }
 }
@@ -495,10 +430,6 @@ struct HistoryRow: View {
                     Text(calculation.calculationDate, style: .date)
                         .font(.caption)
                         .foregroundColor(.secondary)
-                    
-                    Text("\(calculation.optimalPositions.count) positions")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
                 }
             }
         }
@@ -508,9 +439,6 @@ struct HistoryRow: View {
     private func colorForCelestialType(_ type: CelestialType) -> Color {
         switch type {
         case .sun: return .yellow
-        case .moon: return .gray
-        case .planet: return .blue
-        case .star: return .white
         }
     }
 }
@@ -537,25 +465,17 @@ class LandmarkAnnotation: NSObject, MKAnnotation {
     }
 }
 
-class PositionAnnotation: NSObject, MKAnnotation {
-    let position: OptimalPosition
-    let rank: Int
+class ProjectionAnnotation: NSObject, MKAnnotation {
+    let coordinate: CLLocationCoordinate2D
+    let title: String?
+    let subtitle: String?
+    let isPOI: Bool
     
-    var coordinate: CLLocationCoordinate2D {
-        return position.coordinate
-    }
-    
-    var title: String? {
-        return "Position #\(rank)"
-    }
-    
-    var subtitle: String? {
-        return String(format: "Quality: %.0f%% • %.1fkm away", position.quality * 100, position.distance / 1000)
-    }
-    
-    init(position: OptimalPosition, rank: Int) {
-        self.position = position
-        self.rank = rank
+    init(coordinate: CLLocationCoordinate2D, title: String?, subtitle: String?, isPOI: Bool) {
+        self.coordinate = coordinate
+        self.title = title
+        self.subtitle = subtitle
+        self.isPOI = isPOI
     }
 }
 

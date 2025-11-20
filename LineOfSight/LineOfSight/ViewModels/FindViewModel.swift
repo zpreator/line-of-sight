@@ -115,6 +115,9 @@ class FindViewModel: ObservableObject {
         
         let calculationName = name.isEmpty ? "Find \(DateFormatter.shortDate.string(from: targetDate))" : name
         
+        // Calculate projection points
+        let projectionPoints = calculateProjectionPoints()
+        
         // Create alignment calculation with current parameters
         let calculation = AlignmentCalculation(
             id: UUID(),
@@ -124,7 +127,7 @@ class FindViewModel: ObservableObject {
             calculationDate: Date(),
             targetDate: targetDate,
             alignmentEvents: calculateAlignmentEvents(),
-            optimalPositions: calculateOptimalPositions()
+            projectionPoints: projectionPoints
         )
         
         return calculation
@@ -215,104 +218,34 @@ class FindViewModel: ObservableObject {
     
     private func calculateAlignmentEvents() -> [AlignmentEvent] {
         guard let location = selectedLocation else { return [] }
-        
         var events: [AlignmentEvent] = []
         let calendar = Calendar.current
         let startDate = calendar.startOfDay(for: targetDate)
-        
         // Calculate positions every hour for 24 hours
         for hour in 0..<24 {
             let eventDate = startDate.addingTimeInterval(TimeInterval(hour * 3600))
-            let position: CelestialCoordinate
-            
-            switch selectedCelestialObject.type {
-            case .sun:
-                position = AstronomicalCalculations.sunPosition(for: eventDate, at: location.coordinate)
-            case .moon:
-                position = AstronomicalCalculations.moonPosition(for: eventDate, at: location.coordinate)
-            default:
-                // For other objects, would need proper ephemeris data
-                continue
-            }
-            
-            // Calculate photographer position (simplified)
-            // This would be more complex in production, considering terrain and desired framing
-            let photographerCoordinate = calculatePhotographerPosition(
-                landmark: location.coordinate,
-                celestialAzimuth: position.azimuth,
-                celestialElevation: position.elevation
-            )
-            
-            // Calculate distance from photographer to landmark
-            let distance = locationService.distance(
-                from: photographerCoordinate,
-                to: location.coordinate
-            )
-            
-            let event = AlignmentEvent(
-                timestamp: eventDate,
-                azimuth: position.azimuth,
-                elevation: position.elevation,
-                photographerPosition: photographerCoordinate,
-                alignmentQuality: calculateAlignmentQuality(elevation: position.elevation),
-                distance: distance
-            )
-            
-            events.append(event)
-        }
-        
-        return events
-    }
-    
-    private func calculateOptimalPositions() -> [OptimalPosition] {
-        guard let location = selectedLocation else { return [] }
-        
-        var positions: [OptimalPosition] = []
-        
-        // Create a grid of potential photographer positions around the landmark
-        let gridSize = 0.01 // About 1km
-        let steps = 10
-        let stepSize = gridSize / Double(steps)
-        
-        for i in -steps...steps {
-            for j in -steps...steps {
-                let photographerCoordinate = CLLocationCoordinate2D(
-                    latitude: location.coordinate.latitude + Double(i) * stepSize,
-                    longitude: location.coordinate.longitude + Double(j) * stepSize
+                // Generic celestial object support
+                let position = AstronomicalCalculations.position(for: selectedCelestialObject, at: eventDate, coordinate: location.coordinate)
+                let photographerCoordinate = calculatePhotographerPosition(
+                    landmark: location.coordinate,
+                    celestialAzimuth: position.azimuth,
+                    celestialElevation: position.elevation
                 )
-                
-                // Calculate distance and bearing to landmark
                 let distance = locationService.distance(
                     from: photographerCoordinate,
                     to: location.coordinate
                 )
-                
-                let bearing = locationService.bearing(
-                    from: photographerCoordinate,
-                    to: location.coordinate
+                let event = AlignmentEvent(
+                    timestamp: eventDate,
+                    azimuth: position.azimuth,
+                    elevation: position.elevation,
+                    photographerPosition: photographerCoordinate,
+                    alignmentQuality: calculateAlignmentQuality(elevation: position.elevation),
+                    distance: distance
                 )
-                
-                // Calculate quality score based on various factors
-                let quality = calculatePositionQuality(
-                    distance: distance,
-                    bearing: bearing,
-                    photographerPosition: photographerCoordinate
-                )
-                
-                let position = OptimalPosition(
-                    coordinate: photographerCoordinate,
-                    quality: quality,
-                    distance: distance,
-                    bearing: bearing,
-                    estimatedTime: targetDate // Simplified
-                )
-                
-                positions.append(position)
-            }
+                events.append(event)
         }
-        
-        // Sort by quality and return top positions
-        return Array(positions.sorted { $0.quality > $1.quality }.prefix(50))
+        return events
     }
     
     private func calculatePhotographerPosition(
@@ -347,15 +280,33 @@ class FindViewModel: ObservableObject {
         return 1.0 // Excellent
     }
     
-    private func calculatePositionQuality(
-        distance: Double,
-        bearing: Double,
-        photographerPosition: CLLocationCoordinate2D
-    ) -> Double {
-        // Simplified quality calculation
-        // In production, would consider terrain, accessibility, etc.
-        let distanceScore = max(0, 1.0 - distance / 10000.0) // Prefer closer positions
-        return min(1.0, distanceScore)
+    private func calculateProjectionPoints() -> ProjectionPoints {
+        guard let location = selectedLocation else {
+            // Return default values if no location
+            return ProjectionPoints(
+                poiProjection: CLLocationCoordinate2D(latitude: 0, longitude: 0),
+                celestialProjection: CLLocationCoordinate2D(latitude: 0, longitude: 0)
+            )
+        }
+        
+        // Get the projected line from POI to celestial object at 10km distance
+        let projectedLine = AstronomicalCalculations.projectedLineToCelestialObject(
+            poi: location.coordinate,
+            object: selectedCelestialObject,
+            date: targetDate,
+            distanceKm: 10.0
+        )
+        
+        // The start point is where the POI is (projects straight down)
+        let poiProjection = projectedLine.start
+        
+        // The end point is where the celestial object's line through the POI hits the ground at 10km
+        let celestialProjection = projectedLine.end
+        
+        return ProjectionPoints(
+            poiProjection: poiProjection,
+            celestialProjection: celestialProjection
+        )
     }
 }
 
@@ -377,7 +328,12 @@ struct AlignmentCalculation: Identifiable {
     let calculationDate: Date
     let targetDate: Date
     let alignmentEvents: [AlignmentEvent]
-    let optimalPositions: [OptimalPosition]
+    let projectionPoints: ProjectionPoints // Two ground projection points
+}
+
+struct ProjectionPoints {
+    let poiProjection: CLLocationCoordinate2D // Where POI projects down to ground
+    let celestialProjection: CLLocationCoordinate2D // Where celestial object projects down through POI
 }
 
 struct AlignmentEvent: Identifiable {
@@ -388,13 +344,4 @@ struct AlignmentEvent: Identifiable {
     let photographerPosition: CLLocationCoordinate2D
     let alignmentQuality: Double
     let distance: Double // Distance from photographer to landmark
-}
-
-struct OptimalPosition: Identifiable {
-    let id = UUID()
-    let coordinate: CLLocationCoordinate2D
-    let quality: Double
-    let distance: Double
-    let bearing: Double
-    let estimatedTime: Date
 }

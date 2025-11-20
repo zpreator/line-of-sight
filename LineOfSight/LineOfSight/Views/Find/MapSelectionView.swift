@@ -421,12 +421,6 @@ struct CelestialObjectPicker: View {
         switch type {
         case .sun:
             return .yellow
-        case .moon:
-            return .gray
-        case .planet:
-            return .blue
-        case .star:
-            return .white
         }
     }
 }
@@ -474,7 +468,6 @@ struct CalculationResultsView: View {
                 Picker("View", selection: $selectedTab) {
                     Text("Timeline").tag(0)
                     Text("Best Times").tag(1)
-                    Text("Positions").tag(2)
                 }
                 .pickerStyle(.segmented)
                 .padding()
@@ -486,9 +479,6 @@ struct CalculationResultsView: View {
                     
                     BestTimesView(calculation: calculation)
                         .tag(1)
-                    
-                    OptimalPositionsView(calculation: calculation)
-                        .tag(2)
                 }
                 .tabViewStyle(.page(indexDisplayMode: .never))
             }
@@ -580,45 +570,6 @@ struct BestTimesView: View {
     }
 }
 
-// MARK: - Optimal Positions View
-struct OptimalPositionsView: View {
-    let calculation: AlignmentCalculation
-    
-    var topPositions: [OptimalPosition] {
-        Array(calculation.optimalPositions.prefix(8))
-    }
-    
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                SummaryCard(calculation: calculation)
-                
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Optimal Photography Positions")
-                        .font(.headline)
-                        .padding(.horizontal)
-                    
-                    Text("These positions offer the best alignment opportunities. Tap a position to see details.")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                        .padding(.horizontal)
-                    
-                    LazyVStack(spacing: 12) {
-                        ForEach(Array(topPositions.enumerated()), id: \.element.id) { index, position in
-                            PositionCard(
-                                position: position,
-                                landmark: calculation.landmark,
-                                rank: index + 1
-                            )
-                        }
-                    }
-                    .padding(.horizontal)
-                }
-            }
-        }
-    }
-}
-
 // MARK: - Supporting Card Views
 
 struct SummaryCard: View {
@@ -672,9 +623,6 @@ struct SummaryCard: View {
     private func colorForCelestialType(_ type: CelestialType) -> Color {
         switch type {
         case .sun: return .yellow
-        case .moon: return .gray
-        case .planet: return .blue
-        case .star: return .white
         }
     }
 }
@@ -775,41 +723,6 @@ struct BestTimeCard: View {
         }
         .padding()
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
-    }
-}
-
-struct PositionCard: View {
-    let position: OptimalPosition
-    let landmark: Location
-    let rank: Int
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text("Position #\(rank)")
-                    .font(.headline)
-                
-                Spacer()
-                
-                Text(String(format: "%.0f%% Quality", position.quality * 100))
-                    .font(.subheadline)
-                    .foregroundColor(.green)
-            }
-            
-            Text(String(format: "%.6f, %.6f", position.coordinate.latitude, position.coordinate.longitude))
-                .font(.caption)
-                .foregroundColor(.secondary)
-            
-            HStack {
-                Label(String(format: "%.1fkm away", position.distance / 1000), systemImage: "ruler")
-                Label(String(format: "%.0f° bearing", position.bearing), systemImage: "safari")
-                Spacer()
-            }
-            .font(.caption)
-            .foregroundColor(.secondary)
-        }
-        .padding()
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
     }
 }
 

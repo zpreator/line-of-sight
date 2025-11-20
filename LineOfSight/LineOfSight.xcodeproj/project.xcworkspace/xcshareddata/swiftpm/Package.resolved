@@ -1,0 +1,15 @@
+{
+  "originHash" : "0ae91fb57689f48b9d649dda8ecf70b4d4f634145677d4e4780e72d96f6ca9fe",
+  "pins" : [
+    {
+      "identity" : "swiftaa",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/onekiloparsec/SwiftAA.git",
+      "state" : {
+        "revision" : "050867bd8e9411100d3073047ce95942e2b0aa0d",
+        "version" : "3.0.1"
+      }
+    }
+  ],
+  "version" : 3
+}

@@ -7,6 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		148A251D2ECEAC07007AFD22 /* AABridge in Frameworks */ = {isa = PBXBuildFile; productRef = 148A251C2ECEAC07007AFD22 /* AABridge */; };
+		148A251F2ECEAC07007AFD22 /* AAplus in Frameworks */ = {isa = PBXBuildFile; productRef = 148A251E2ECEAC07007AFD22 /* AAplus */; };
+		148A25212ECEAC07007AFD22 /* SwiftAA in Frameworks */ = {isa = PBXBuildFile; productRef = 148A25202ECEAC07007AFD22 /* SwiftAA */; };
 		D4A1B9F12A5E1C8900123456 /* LineOfSightApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4A1B9F02A5E1C8900123456 /* LineOfSightApp.swift */; };
 		D4A1B9F32A5E1C8900123456 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4A1B9F22A5E1C8900123456 /* ContentView.swift */; };
 		D4A1B9F52A5E1C8B00123456 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = D4A1B9F42A5E1C8B00123456 /* Assets.xcassets */; };
@@ -38,6 +41,9 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				148A25212ECEAC07007AFD22 /* SwiftAA in Frameworks */,
+				148A251F2ECEAC07007AFD22 /* AAplus in Frameworks */,
+				148A251D2ECEAC07007AFD22 /* AABridge in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -169,6 +175,9 @@
 				Base,
 			);
 			mainGroup = D4A1B9E42A5E1C8900123456;
+			packageReferences = (
+				148A251B2ECEAC07007AFD22 /* XCRemoteSwiftPackageReference "SwiftAA" */,
+			);
 			productRefGroup = D4A1B9EE2A5E1C8900123456 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -414,6 +423,35 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		148A251B2ECEAC07007AFD22 /* XCRemoteSwiftPackageReference "SwiftAA" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/onekiloparsec/SwiftAA.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 3.0.1;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		148A251C2ECEAC07007AFD22 /* AABridge */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 148A251B2ECEAC07007AFD22 /* XCRemoteSwiftPackageReference "SwiftAA" */;
+			productName = AABridge;
+		};
+		148A251E2ECEAC07007AFD22 /* AAplus */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 148A251B2ECEAC07007AFD22 /* XCRemoteSwiftPackageReference "SwiftAA" */;
+			productName = AAplus;
+		};
+		148A25202ECEAC07007AFD22 /* SwiftAA */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 148A251B2ECEAC07007AFD22 /* XCRemoteSwiftPackageReference "SwiftAA" */;
+			productName = SwiftAA;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = D4A1B9E52A5E1C8900123456 /* Project object */;
 }
