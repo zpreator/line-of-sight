@@ -22,6 +22,7 @@ struct MapSelectionView: View {
             InteractiveMapView(
                 region: $viewModel.mapRegion,
                 selectedLocation: viewModel.selectedLocation,
+                hourlyIntersections: viewModel.hourlyIntersections,
                 onLocationSelected: { coordinate in
                     viewModel.selectLocation(at: coordinate)
                 }
@@ -108,14 +109,13 @@ struct MapSelectionView: View {
                     // Calculate Button
                     if viewModel.selectedLocation != nil {
                         Button(action: {
-                            if let calculation = viewModel.calculateAlignment() {
-                                calculationStore.setCurrentCalculation(calculation)
-                                selectedTab = 1 // Navigate to Results tab
+                            Task {
+                                await viewModel.calculateHourlyIntersections()
                             }
                         }) {
                             HStack {
                                 Image(systemName: "scope")
-                                Text("Calculate Alignment")
+                                Text("Calculate Intersections")
                             }
                             .font(.headline)
                             .foregroundColor(.white)
@@ -123,6 +123,24 @@ struct MapSelectionView: View {
                             .padding()
                             .background(.orange)
                             .cornerRadius(12)
+                        }
+                        
+                        // Clear button if intersections are showing
+                        if !viewModel.hourlyIntersections.isEmpty {
+                            Button(action: {
+                                viewModel.hourlyIntersections = []
+                            }) {
+                                HStack {
+                                    Image(systemName: "trash")
+                                    Text("Clear Intersections (\(viewModel.hourlyIntersections.count))")
+                                }
+                                .font(.subheadline)
+                                .foregroundColor(.red)
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .background(.regularMaterial)
+                                .cornerRadius(12)
+                            }
                         }
                     }
                 }
@@ -136,9 +154,16 @@ struct MapSelectionView: View {
                 Color.black.opacity(0.3)
                     .ignoresSafeArea()
                 
-                ProgressView("Getting elevation data...")
-                    .padding()
-                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+                VStack(spacing: 12) {
+                    ProgressView()
+                    if !viewModel.hourlyIntersections.isEmpty {
+                        Text("Calculating intersections...")
+                    } else {
+                        Text("Getting elevation data...")
+                    }
+                }
+                .padding()
+                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
             }
         }
         .alert("Error", isPresented: .constant(viewModel.errorMessage != nil)) {
@@ -167,6 +192,7 @@ struct MapSelectionView: View {
 struct InteractiveMapView: UIViewRepresentable {
     @Binding var region: MKCoordinateRegion
     let selectedLocation: Location?
+    let hourlyIntersections: [HourlyIntersection]
     let onLocationSelected: (CLLocationCoordinate2D) -> Void
     
     func makeUIView(context: Context) -> MKMapView {
@@ -196,6 +222,12 @@ struct InteractiveMapView: UIViewRepresentable {
         
         if let location = selectedLocation {
             let annotation = LocationAnnotation(location: location)
+            mapView.addAnnotation(annotation)
+        }
+        
+        // Add hourly intersection annotations
+        for intersection in hourlyIntersections {
+            let annotation = HourlyIntersectionAnnotation(intersection: intersection)
             mapView.addAnnotation(annotation)
         }
     }
@@ -228,20 +260,42 @@ struct InteractiveMapView: UIViewRepresentable {
         }
         
         func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
-            guard annotation is LocationAnnotation else {
+            // User location annotation
+            if annotation is MKUserLocation {
                 return nil
             }
             
-            let identifier = "LocationPin"
-            let annotationView = mapView.dequeueReusableAnnotationView(withIdentifier: identifier) as? MKMarkerAnnotationView
-                ?? MKMarkerAnnotationView(annotation: annotation, reuseIdentifier: identifier)
+            // Hourly intersection annotations
+            if let intersectionAnnotation = annotation as? HourlyIntersectionAnnotation {
+                let identifier = "IntersectionPin"
+                let annotationView = mapView.dequeueReusableAnnotationView(withIdentifier: identifier) as? MKMarkerAnnotationView
+                    ?? MKMarkerAnnotationView(annotation: annotation, reuseIdentifier: identifier)
+                
+                annotationView.annotation = annotation
+                annotationView.markerTintColor = .systemBlue
+                annotationView.glyphText = "\(intersectionAnnotation.intersection.hour)"
+                annotationView.canShowCallout = true
+                annotationView.displayPriority = .defaultLow
+                
+                return annotationView
+            }
             
-            annotationView.annotation = annotation
-            annotationView.markerTintColor = .red
-            annotationView.glyphImage = UIImage(systemName: "mappin")
-            annotationView.canShowCallout = true
+            // Location annotation (POI)
+            if annotation is LocationAnnotation {
+                let identifier = "LocationPin"
+                let annotationView = mapView.dequeueReusableAnnotationView(withIdentifier: identifier) as? MKMarkerAnnotationView
+                    ?? MKMarkerAnnotationView(annotation: annotation, reuseIdentifier: identifier)
+                
+                annotationView.annotation = annotation
+                annotationView.markerTintColor = .red
+                annotationView.glyphImage = UIImage(systemName: "mappin")
+                annotationView.canShowCallout = true
+                annotationView.displayPriority = .required
+                
+                return annotationView
+            }
             
-            return annotationView
+            return nil
         }
     }
 }
@@ -265,6 +319,31 @@ class LocationAnnotation: NSObject, MKAnnotation {
     
     init(location: Location) {
         self.location = location
+    }
+}
+
+// MARK: - Hourly Intersection Annotation
+
+class HourlyIntersectionAnnotation: NSObject, MKAnnotation {
+    let intersection: HourlyIntersection
+    
+    var coordinate: CLLocationCoordinate2D {
+        return intersection.coordinate
+    }
+    
+    var title: String? {
+        return intersection.hourLabel
+    }
+    
+    var subtitle: String? {
+        return String(format: "Sun: %.1f° Az, %.1f° El • %.1f km",
+                     intersection.sunAzimuth,
+                     intersection.sunElevation,
+                     intersection.distance / 1000)
+    }
+    
+    init(intersection: HourlyIntersection) {
+        self.intersection = intersection
     }
 }
 
@@ -323,18 +402,26 @@ struct LocationInfoCard: View {
                 }
             }
             
-            HStack {
-                Label(String(format: "%.0fm elevation", location.elevation), systemImage: "mountain.2")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                
-                if let distance = viewModel.distanceToSelectedLocation() {
-                    Label(distance, systemImage: "ruler")
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Label(String(format: "%.0fm elevation (DEM)", location.elevation), systemImage: "mountain.2")
                         .font(.caption)
                         .foregroundColor(.secondary)
+                    
+                    if let distance = viewModel.distanceToSelectedLocation() {
+                        Label(distance, systemImage: "ruler")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    Spacer()
                 }
                 
-                Spacer()
+                // Data source note
+                Text("⚠️ Elevation from Mapzen DEM tiles may differ from Apple Maps visual terrain")
+                    .font(.caption2)
+                    .foregroundColor(.orange)
+                    .fixedSize(horizontal: false, vertical: true)
                 
                 HStack(spacing: 4) {
                     Image(systemName: location.source.icon)

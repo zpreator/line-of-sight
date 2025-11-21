@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 56;
+	objectVersion = 70;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -13,13 +13,6 @@
 		D4A1B9F12A5E1C8900123456 /* LineOfSightApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4A1B9F02A5E1C8900123456 /* LineOfSightApp.swift */; };
 		D4A1B9F32A5E1C8900123456 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4A1B9F22A5E1C8900123456 /* ContentView.swift */; };
 		D4A1B9F52A5E1C8B00123456 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = D4A1B9F42A5E1C8B00123456 /* Assets.xcassets */; };
-		D4A1B9F82A5E1C8B00123456 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = D4A1B9F72A5E1C8B00123456 /* Preview Assets.xcassets */; };
-		D4A1B9FE2A5E1C8900123456 /* Location.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4A1B9F82A5E1C8900123456 /* Location.swift */; };
-		D4A1B9FF2A5E1C8900123456 /* CelestialObject.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4A1B9F92A5E1C8900123456 /* CelestialObject.swift */; };
-		D4A1BA002A5E1C8900123456 /* LocationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4A1B9FA2A5E1C8900123456 /* LocationService.swift */; };
-		D4A1BA012A5E1C8900123456 /* AstronomicalCalculations.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4A1B9FB2A5E1C8900123456 /* AstronomicalCalculations.swift */; };
-		D4A1BA022A5E1C8900123456 /* FindViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4A1B9FC2A5E1C8900123456 /* FindViewModel.swift */; };
-		D4A1BA032A5E1C8900123456 /* MapSelectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4A1B9FD2A5E1C8900123456 /* MapSelectionView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -27,14 +20,16 @@
 		D4A1B9F02A5E1C8900123456 /* LineOfSightApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LineOfSightApp.swift; sourceTree = "<group>"; };
 		D4A1B9F22A5E1C8900123456 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		D4A1B9F42A5E1C8B00123456 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		D4A1B9F72A5E1C8B00123456 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
-		D4A1B9F82A5E1C8900123456 /* Location.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Location.swift; sourceTree = "<group>"; };
-		D4A1B9F92A5E1C8900123456 /* CelestialObject.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CelestialObject.swift; sourceTree = "<group>"; };
-		D4A1B9FA2A5E1C8900123456 /* LocationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationService.swift; sourceTree = "<group>"; };
-		D4A1B9FB2A5E1C8900123456 /* AstronomicalCalculations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AstronomicalCalculations.swift; sourceTree = "<group>"; };
-		D4A1B9FC2A5E1C8900123456 /* FindViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FindViewModel.swift; sourceTree = "<group>"; };
-		D4A1B9FD2A5E1C8900123456 /* MapSelectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapSelectionView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		148A25302ED0C08E007AFD22 /* Utils */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Utils; sourceTree = "<group>"; };
+		148A25342ED0C0A3007AFD22 /* Views */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Views; sourceTree = "<group>"; };
+		148A253D2ED0C0AE007AFD22 /* Services */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Services; sourceTree = "<group>"; };
+		148A25462ED0C0AE007AFD22 /* ViewModels */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = ViewModels; sourceTree = "<group>"; };
+		148A254D2ED0C0C0007AFD22 /* Models */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Models; sourceTree = "<group>"; };
+		148A25522ED0C0C5007AFD22 /* Preview Content */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = "Preview Content"; sourceTree = "<group>"; };
+/* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		D4A1B9EA2A5E1C8900123456 /* Frameworks */ = {
@@ -69,66 +64,17 @@
 		D4A1B9EF2A5E1C8900123456 /* LineOfSight */ = {
 			isa = PBXGroup;
 			children = (
+				D4A1B9F42A5E1C8B00123456 /* Assets.xcassets */,
+				148A254D2ED0C0C0007AFD22 /* Models */,
+				148A25522ED0C0C5007AFD22 /* Preview Content */,
+				148A253D2ED0C0AE007AFD22 /* Services */,
+				148A25302ED0C08E007AFD22 /* Utils */,
+				148A25462ED0C0AE007AFD22 /* ViewModels */,
+				148A25342ED0C0A3007AFD22 /* Views */,
 				D4A1B9F02A5E1C8900123456 /* LineOfSightApp.swift */,
 				D4A1B9F22A5E1C8900123456 /* ContentView.swift */,
-				D4A1BA042A5E1C8900123456 /* Views */,
-				D4A1BA052A5E1C8900123456 /* ViewModels */,
-				D4A1BA062A5E1C8900123456 /* Models */,
-				D4A1BA072A5E1C8900123456 /* Services */,
-				D4A1B9F42A5E1C8B00123456 /* Assets.xcassets */,
-				D4A1B9F62A5E1C8B00123456 /* Preview Content */,
 			);
 			path = LineOfSight;
-			sourceTree = "<group>";
-		};
-		D4A1B9F62A5E1C8B00123456 /* Preview Content */ = {
-			isa = PBXGroup;
-			children = (
-				D4A1B9F72A5E1C8B00123456 /* Preview Assets.xcassets */,
-			);
-			path = "Preview Content";
-			sourceTree = "<group>";
-		};
-		D4A1BA042A5E1C8900123456 /* Views */ = {
-			isa = PBXGroup;
-			children = (
-				D4A1BA082A5E1C8900123456 /* Find */,
-			);
-			path = Views;
-			sourceTree = "<group>";
-		};
-		D4A1BA052A5E1C8900123456 /* ViewModels */ = {
-			isa = PBXGroup;
-			children = (
-				D4A1B9FC2A5E1C8900123456 /* FindViewModel.swift */,
-			);
-			path = ViewModels;
-			sourceTree = "<group>";
-		};
-		D4A1BA062A5E1C8900123456 /* Models */ = {
-			isa = PBXGroup;
-			children = (
-				D4A1B9F82A5E1C8900123456 /* Location.swift */,
-				D4A1B9F92A5E1C8900123456 /* CelestialObject.swift */,
-			);
-			path = Models;
-			sourceTree = "<group>";
-		};
-		D4A1BA072A5E1C8900123456 /* Services */ = {
-			isa = PBXGroup;
-			children = (
-				D4A1B9FA2A5E1C8900123456 /* LocationService.swift */,
-				D4A1B9FB2A5E1C8900123456 /* AstronomicalCalculations.swift */,
-			);
-			path = Services;
-			sourceTree = "<group>";
-		};
-		D4A1BA082A5E1C8900123456 /* Find */ = {
-			isa = PBXGroup;
-			children = (
-				D4A1B9FD2A5E1C8900123456 /* MapSelectionView.swift */,
-			);
-			path = Find;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -145,6 +91,14 @@
 			buildRules = (
 			);
 			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				148A25302ED0C08E007AFD22 /* Utils */,
+				148A25342ED0C0A3007AFD22 /* Views */,
+				148A253D2ED0C0AE007AFD22 /* Services */,
+				148A25462ED0C0AE007AFD22 /* ViewModels */,
+				148A254D2ED0C0C0007AFD22 /* Models */,
+				148A25522ED0C0C5007AFD22 /* Preview Content */,
 			);
 			name = LineOfSight;
 			productName = LineOfSight;
@@ -192,7 +146,6 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				D4A1B9F82A5E1C8B00123456 /* Preview Assets.xcassets in Resources */,
 				D4A1B9F52A5E1C8B00123456 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -206,12 +159,6 @@
 			files = (
 				D4A1B9F32A5E1C8900123456 /* ContentView.swift in Sources */,
 				D4A1B9F12A5E1C8900123456 /* LineOfSightApp.swift in Sources */,
-				D4A1B9FE2A5E1C8900123456 /* Location.swift in Sources */,
-				D4A1B9FF2A5E1C8900123456 /* CelestialObject.swift in Sources */,
-				D4A1BA002A5E1C8900123456 /* LocationService.swift in Sources */,
-				D4A1BA012A5E1C8900123456 /* AstronomicalCalculations.swift in Sources */,
-				D4A1BA022A5E1C8900123456 /* FindViewModel.swift in Sources */,
-				D4A1BA032A5E1C8900123456 /* MapSelectionView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
