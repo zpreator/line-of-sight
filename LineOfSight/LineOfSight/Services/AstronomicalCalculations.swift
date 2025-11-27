@@ -26,7 +26,11 @@ class AstronomicalCalculations {
                 for: geographicCoordinates,
                 at: julianDay
             )
-            return (azimuth: horizontalCoordinates.azimuth.value, elevation: horizontalCoordinates.altitude.value)
+            // Normalize azimuth to be measured clockwise from North
+            // SwiftAA azimuth is clockwise from South; convert by +180° modulo 360
+            let azFromSouth = horizontalCoordinates.azimuth.value
+            let azFromNorth = fmod(azFromSouth + 180.0, 360.0)
+            return (azimuth: azFromNorth, elevation: horizontalCoordinates.altitude.value)
         // Future celestial types can be added here
         }
     }
