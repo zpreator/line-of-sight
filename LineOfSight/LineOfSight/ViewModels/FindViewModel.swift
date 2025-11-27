@@ -111,27 +111,6 @@ class FindViewModel: ObservableObject {
         errorMessage = "Getting your location..."
     }
     
-    /// Calculate alignment for the selected location and celestial object
-    func calculateAlignment(name: String = "") -> AlignmentCalculation? {
-        guard let location = selectedLocation else { return nil }
-        
-        let calculationName = name.isEmpty ? "Find \(DateFormatter.shortDate.string(from: targetDate))" : name
-        
-        // Create alignment calculation with current parameters
-        let calculation = AlignmentCalculation(
-            id: UUID(),
-            name: calculationName,
-            landmark: location,
-            celestialObject: selectedCelestialObject,
-            calculationDate: Date(),
-            targetDate: targetDate,
-            alignmentEvents: calculateAlignmentEvents(),
-            projectionPoints: calculateProjectionPoints()
-        )
-        
-        return calculation
-    }
-    
     /// Calculate terrain-aware sun alignment path
     func calculateTerrainAlignment() async -> [SunAlignmentPoint] {
         guard let location = selectedLocation,
@@ -341,99 +320,9 @@ class FindViewModel: ObservableObject {
             .store(in: &cancellables)
     }
     
-    private func calculateAlignmentEvents() -> [AlignmentEvent] {
-        guard let location = selectedLocation else { return [] }
-        var events: [AlignmentEvent] = []
-        let calendar = Calendar.current
-        let startDate = calendar.startOfDay(for: targetDate)
-        // Calculate positions every hour for 24 hours
-        for hour in 0..<24 {
-            let eventDate = startDate.addingTimeInterval(TimeInterval(hour * 3600))
-                // Generic celestial object support
-                let position = AstronomicalCalculations.position(for: selectedCelestialObject, at: eventDate, coordinate: location.coordinate)
-                let photographerCoordinate = calculatePhotographerPosition(
-                    landmark: location.coordinate,
-                    celestialAzimuth: position.azimuth,
-                    celestialElevation: position.elevation
-                )
-                let distance = locationService.distance(
-                    from: photographerCoordinate,
-                    to: location.coordinate
-                )
-                let event = AlignmentEvent(
-                    timestamp: eventDate,
-                    azimuth: position.azimuth,
-                    elevation: position.elevation,
-                    photographerPosition: photographerCoordinate,
-                    alignmentQuality: calculateAlignmentQuality(elevation: position.elevation),
-                    distance: distance
-                )
-                events.append(event)
-        }
-        return events
-    }
-    
-    private func calculatePhotographerPosition(
-        landmark: CLLocationCoordinate2D,
-        celestialAzimuth: Double,
-        celestialElevation: Double
-    ) -> CLLocationCoordinate2D {
-        // Simplified calculation - in production would consider terrain, desired framing, etc.
-        let distance = 1000.0 // 1km away as default
-        let oppositeAzimuth = celestialAzimuth + 180.0
-        
-        let lat1 = landmark.latitude * .pi / 180
-        let lon1 = landmark.longitude * .pi / 180
-        let bearing = oppositeAzimuth * .pi / 180
-        let angularDistance = distance / 6371000 // Earth radius in meters
-        
-        let lat2 = asin(sin(lat1) * cos(angularDistance) + cos(lat1) * sin(angularDistance) * cos(bearing))
-        let lon2 = lon1 + atan2(sin(bearing) * sin(angularDistance) * cos(lat1), cos(angularDistance) - sin(lat1) * sin(lat2))
-        
-        return CLLocationCoordinate2D(
-            latitude: lat2 * 180 / .pi,
-            longitude: lon2 * 180 / .pi
-        )
-    }
-    
-    private func calculateAlignmentQuality(elevation: Double) -> Double {
-        // Quality based on elevation - higher is generally better for photography
-        if elevation < 0 { return 0.0 } // Below horizon
-        if elevation < 5 { return 0.3 } // Very low
-        if elevation < 15 { return 0.6 } // Low
-        if elevation < 30 { return 0.8 } // Good
-        return 1.0 // Excellent
-    }
-    
-    private func calculateProjectionPoints() -> ProjectionPoints {
-        guard let location = selectedLocation else {
-            // Return default values if no location
-            return ProjectionPoints(
-                poiProjection: CLLocationCoordinate2D(latitude: 0, longitude: 0),
-                celestialProjection: CLLocationCoordinate2D(latitude: 0, longitude: 0)
-            )
-        }
-        
-        // Get the projected line from POI to celestial object at 10km distance
-        let projectedLine = AstronomicalCalculations.projectedLineToCelestialObject(
-            poi: location.coordinate,
-            object: selectedCelestialObject,
-            date: targetDate,
-            distanceKm: 10.0
-        )
-        
-        // The start point is where the POI is (projects straight down)
-        let poiProjection = projectedLine.start
-        
-        // The end point is where the celestial object's line through the POI hits the ground at 10km
-        let celestialProjection = projectedLine.end
-        
-        return ProjectionPoints(
-            poiProjection: poiProjection,
-            celestialProjection: celestialProjection
-        )
-    }
 }
+
+// Removed unused function calculateAlignment and its dependencies
 
 extension DateFormatter {
     static let shortDate: DateFormatter = {
