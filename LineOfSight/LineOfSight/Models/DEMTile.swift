@@ -88,18 +88,18 @@ struct DEMTile {
         let z11 = Double(elevations[y1 * width + x1])
         
         // DEBUG: Log tile query details
-        print("📍 Tile Query: coord=(\(String(format: "%.6f", coordinate.latitude)),\(String(format: "%.6f", coordinate.longitude)))")
-        print("   Origin: (\(String(format: "%.6f", originLatitude)),\(String(format: "%.6f", originLongitude)))")
-        print("   Pixel: x=\(String(format: "%.2f", x)), y=\(String(format: "%.2f", y))")
-        print("   Corners: z00=\(String(format: "%.1f", z00)), z10=\(String(format: "%.1f", z10)), z01=\(String(format: "%.1f", z01)), z11=\(String(format: "%.1f", z11))")
-        print("   Size: \(width)x\(height), cellSizeLon=\(cellSizeLon), cellSizeLat=\(cellSizeLat)")
+        // print("📍 Tile Query: coord=(\(String(format: "%.6f", coordinate.latitude)),\(String(format: "%.6f", coordinate.longitude)))")
+        // print("   Origin: (\(String(format: "%.6f", originLatitude)),\(String(format: "%.6f", originLongitude)))")
+        // print("   Pixel: x=\(String(format: "%.2f", x)), y=\(String(format: "%.2f", y))")
+        // print("   Corners: z00=\(String(format: "%.1f", z00)), z10=\(String(format: "%.1f", z10)), z01=\(String(format: "%.1f", z01)), z11=\(String(format: "%.1f", z11))")
+        // print("   Size: \(width)x\(height), cellSizeLon=\(cellSizeLon), cellSizeLat=\(cellSizeLat)")
         
         // Bilinear interpolation
         let z0 = z00 * (1 - fx) + z10 * fx
         let z1 = z01 * (1 - fx) + z11 * fx
         let z = z0 * (1 - fy) + z1 * fy
         
-        print("   Result: \(String(format: "%.1f", z))m")
+        // print("   Result: \(String(format: "%.1f", z))m")
         
         return z
     }
