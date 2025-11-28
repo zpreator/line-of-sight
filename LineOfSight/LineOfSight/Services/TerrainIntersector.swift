@@ -66,41 +66,49 @@ actor TerrainIntersector {
         directionENU: simd_double3,
         maxDistanceMeters: Double = 30000
     ) async -> CLLocationCoordinate2D? {
-        
         // Normalize the direction vector
         let direction = directionENU.normalized
+
+        // Check if the ray immediately points underground (negative z-component)
+        let tolerance: Double = -0.2 // Allow a small tolerance for near-horizontal rays
+        print("Z direction: \(direction.z)")
+        if direction.z < tolerance {
+            print("  🚫 Ray immediately points underground. No intersection.")
+            return nil
+        }
         
+
         // Starting position in ENU coordinates (relative to POI)
         // Start with a minimum offset to avoid intersecting at the POI itself
         let minOffset = 100.0  // Start checking 100m away from POI
         var currentENU = direction * minOffset
         var currentDistance: Double = minOffset
-        
+
         // Safety limit: max number of iterations
         let maxIterations = Int((maxDistanceMeters - minOffset) / stepSize) + 1
         var iterationCount = 0
-        
+
         // Track failed elevation lookups
         var consecutiveFailures = 0
         let maxConsecutiveFailures = 20  // Stop if 20 consecutive elevation lookups fail
-        
+
         // Step along the ray
         while currentDistance < maxDistanceMeters && iterationCount < maxIterations {
             iterationCount += 1
-            
+
             // Move to next step
             currentDistance += stepSize
             currentENU = direction * currentDistance
-            
+
             // Convert ENU position to lat/lon
             let currentCoordinate = CoordinateUtils.enuToCoordinate(
                 enuOffset: currentENU,
                 origin: poi
             )
-            
+
             // Calculate ray elevation at this position
             let rayElevation = poiElevation + currentENU.z
-            
+
             // Get terrain elevation at this point
             guard let terrainElevation = await demService.elevation(at: currentCoordinate) else {
                 // If we can't get elevation data, continue searching
@@ -111,15 +119,15 @@ actor TerrainIntersector {
                 }
                 continue
             }
-            
+
             // Reset failure counter on successful lookup
             consecutiveFailures = 0
-            
+
             // Log every 500m
             if Int(currentDistance) % 500 == 0 {
                 print("  📍 Step \(iterationCount): dist=\(String(format: "%.0f", currentDistance))m, ENU=(\(String(format: "%.1f", currentENU.x)),\(String(format: "%.1f", currentENU.y)),\(String(format: "%.1f", currentENU.z))), coord=(\(String(format: "%.6f", currentCoordinate.latitude)),\(String(format: "%.6f", currentCoordinate.longitude))), rayElev=\(String(format: "%.1f", rayElevation))m, terrainElev=\(String(format: "%.1f", terrainElevation))m")
             }
-            
+
             // Check for intersection (ray elevation <= terrain elevation)
             if rayElevation <= terrainElevation {
                 print("  ✅ INTERSECTION! dist=\(String(format: "%.0f", currentDistance))m, rayElev=\(String(format: "%.1f", rayElevation))m <= terrainElev=\(String(format: "%.1f", terrainElevation))m")
@@ -134,7 +142,7 @@ actor TerrainIntersector {
                 )
             }
         }
-        
+
         // No intersection found within max distance
         return nil
     }
