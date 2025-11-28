@@ -16,6 +16,7 @@ struct MapSelectionView: View {
     @State private var showingCelestialObjectPicker = false
     @State private var showingDatePicker = false
     @State private var isSearching = false
+    @State private var hasResults = false
     
     var body: some View {
         ZStack {
@@ -24,6 +25,7 @@ struct MapSelectionView: View {
                 region: $viewModel.mapRegion,
                 selectedLocation: viewModel.selectedLocation,
                 minuteIntersections: viewModel.minuteIntersections,
+                hasResults: hasResults,
                 onLocationSelected: { coordinate in
                     viewModel.selectLocation(at: coordinate)
                 }
@@ -32,7 +34,7 @@ struct MapSelectionView: View {
             
             // Overlay Controls
             VStack {
-                // Search Bar or Top Control Bar
+                // Search Bar or Compact Top Control Bar
                 if isSearching {
                     LocationSearchBar(
                         isSearching: $isSearching,
@@ -44,158 +46,183 @@ struct MapSelectionView: View {
                     .padding(.top)
                     .transition(.move(edge: .top).combined(with: .opacity))
                 } else {
-                    HStack {
+                    // Compact horizontal toolbar
+                    HStack(spacing: 8) {
                         // Search Button
                         Button(action: {
                             withAnimation(.spring(response: 0.3)) {
                                 isSearching = true
                             }
                         }) {
-                            HStack(spacing: 8) {
+                            HStack(spacing: 6) {
                                 Image(systemName: "magnifyingglass")
-                                Text("Search for a location")
-                                    .foregroundColor(.secondary)
-                                Spacer()
+                                    .font(.body)
+                                if viewModel.selectedLocation == nil {
+                                    Text("Search")
+                                        .font(.subheadline)
+                                }
                             }
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 12)
-                            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+                            .foregroundColor(.primary)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
                         }
                         .buttonStyle(.plain)
+                        .disabled(hasResults)
+                        .opacity(hasResults ? 0.5 : 1.0)
+                        
+                        // Celestial Object Dropdown
+                        Button(action: { showingCelestialObjectPicker = true }) {
+                            HStack(spacing: 4) {
+                                Image(systemName: viewModel.selectedCelestialObject.type.icon)
+                                    .font(.body)
+                                Image(systemName: "chevron.down")
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                            }
+                            .foregroundColor(.primary)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 8)
+                            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(hasResults)
+                        .opacity(hasResults ? 0.5 : 1.0)
+                        
+                        // Date Dropdown
+                        Button(action: { showingDatePicker = true }) {
+                            HStack(spacing: 4) {
+                                Text(formatCompactDate(viewModel.targetDate))
+                                    .font(.subheadline)
+                                Image(systemName: "chevron.down")
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                            }
+                            .foregroundColor(.primary)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 8)
+                            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(hasResults)
+                        .opacity(hasResults ? 0.5 : 1.0)
+                        
+                        Spacer()
+                        
+                        // New Calculation Button (when results exist)
+                        if hasResults {
+                            Button(action: {
+                                clearResults()
+                            }) {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "plus")
+                                        .font(.body.weight(.semibold))
+                                    Text("New")
+                                        .font(.subheadline.weight(.medium))
+                                }
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 8)
+                                .background(.orange, in: RoundedRectangle(cornerRadius: 8))
+                            }
+                            .buttonStyle(.plain)
+                            .transition(.scale.combined(with: .opacity))
+                        }
                         
                         // User Location Button
                         Button(action: viewModel.centerOnUserLocation) {
                             Image(systemName: "location.circle.fill")
-                                .font(.title2)
-                                .foregroundColor(.white)
-                                .frame(width: 44, height: 44)
-                                .background(Circle().fill(.black.opacity(0.7)))
+                                .font(.body)
+                                .foregroundColor(.primary)
+                                .frame(width: 36, height: 36)
+                                .background(.regularMaterial, in: Circle())
                         }
-                        
-                        // Map Style Toggle (Future Implementation)
-                        Button(action: {}) {
-                            Image(systemName: "map")
-                                .font(.title2)
-                                .foregroundColor(.white)
-                                .frame(width: 44, height: 44)
-                                .background(Circle().fill(.black.opacity(0.7)))
-                        }
+                        .buttonStyle(.plain)
                     }
-                    .padding()
+                    .padding(.horizontal)
+                    .padding(.top)
                     .transition(.move(edge: .top).combined(with: .opacity))
                 }
                 
                 Spacer()
                 
-                // Bottom Control Panel
-                VStack(spacing: 16) {
-                    // Celestial Object Selection
-                    HStack {
-                        Text("Object:")
-                            .foregroundColor(.secondary)
-                        
-                        Button(action: { showingCelestialObjectPicker = true }) {
-                            HStack {
-                                Image(systemName: viewModel.selectedCelestialObject.type.icon)
-                                Text(viewModel.selectedCelestialObject.name)
-                                Image(systemName: "chevron.down")
-                                    .foregroundColor(.secondary)
-                            }
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 8)
-                            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
-                        }
-                        
-                        Spacer()
-                    }
+                // Bottom Action Area
+                HStack {
+                    Spacer()
                     
-                    // Date Selection
-                    HStack {
-                        Text("Date:")
-                            .foregroundColor(.secondary)
-                        
-                        Button(action: { showingDatePicker = true }) {
-                            HStack {
-                                Image(systemName: "calendar")
-                                Text(viewModel.targetDate, style: .date)
-                                Image(systemName: "chevron.down")
-                                    .foregroundColor(.secondary)
-                            }
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 8)
-                            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
-                        }
-                        
-                        Spacer()
-                    }
-                    
-                    // Selected Location Info
-                    if let location = viewModel.selectedLocation {
-                        LocationInfoCard(location: location, viewModel: viewModel)
-                    } else {
-                        LocationPromptCard()
-                    }
-                    
-                    // Calculate Button
-                    if viewModel.selectedLocation != nil {
-                        Button(action: {
-                            Task {
-                                await viewModel.calculateMinuteIntersections()
-                            }
-                        }) {
-                            HStack {
-                                Image(systemName: "scope")
-                                Text("Calculate Intersections")
-                            }
-                            .font(.headline)
-                            .foregroundColor(.white)
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(.orange)
-                            .cornerRadius(12)
-                        }
-                        
-                        // Clear button if intersections are showing
-                        if !viewModel.minuteIntersections.isEmpty {
+                    VStack(spacing: 12) {
+                        // Calculate Button (when location selected but no results)
+                        if viewModel.selectedLocation != nil && !hasResults {
                             Button(action: {
-                                viewModel.minuteIntersections = []
-                            }) {
-                                HStack {
-                                    Image(systemName: "trash")
-                                    Text("Clear Intersections (\(viewModel.minuteIntersections.count))")
+                                Task {
+                                    await viewModel.calculateMinuteIntersections()
+                                    hasResults = true
                                 }
-                                .font(.subheadline)
-                                .foregroundColor(.red)
-                                .frame(maxWidth: .infinity)
-                                .padding()
-                                .background(.regularMaterial)
-                                .cornerRadius(12)
+                            }) {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "scope")
+                                    Text("Calculate")
+                                }
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 20)
+                                .padding(.vertical, 12)
+                                .background(.orange, in: Capsule())
                             }
+                            .shadow(color: .black.opacity(0.2), radius: 8, y: 4)
+                        }
+                        
+                        // Show Results Button (when results available)
+                        if hasResults && !viewModel.showCalculationSheet {
+                            Button(action: {
+                                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                                    viewModel.showCalculationSheet = true
+                                }
+                            }) {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "chart.bar.fill")
+                                    Text("Results")
+                                    if !viewModel.minuteIntersections.isEmpty {
+                                        Text("(\(viewModel.minuteIntersections.count))")
+                                            .font(.caption)
+                                    }
+                                }
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 20)
+                                .padding(.vertical, 12)
+                                .background(.blue, in: Capsule())
+                            }
+                            .shadow(color: .black.opacity(0.2), radius: 8, y: 4)
                         }
                     }
+                    .padding(.trailing)
+                    .padding(.bottom, 20)
                 }
-                .padding()
-                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
-                .padding()
             }
             
-            // Loading Overlay
-            if viewModel.isLoading {
-                Color.black.opacity(0.3)
-                    .ignoresSafeArea()
-                
-                VStack(spacing: 12) {
-                    ProgressView()
-                    if !viewModel.minuteIntersections.isEmpty {
-                        Text("Calculating intersections...")
-                    } else {
-                        Text("Getting elevation data...")
-                    }
+            // Calculation Progress Sheet
+            if viewModel.showCalculationSheet, let state = viewModel.calculationState {
+                VStack {
+                    Spacer()
+                    CalculationProgressSheet(
+                        state: state,
+                        onDismiss: {
+                            viewModel.dismissCalculationSheet()
+                        },
+                        onViewResults: {
+                            viewModel.viewCalculationResults()
+                        },
+                        onSave: {
+                            viewModel.saveCalculation()
+                        }
+                    )
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
-                .padding()
-                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+                .ignoresSafeArea()
             }
         }
+        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: viewModel.showCalculationSheet)
         .alert("Error", isPresented: .constant(viewModel.errorMessage != nil)) {
             Button("OK") {
                 viewModel.errorMessage = nil
@@ -230,6 +257,27 @@ struct MapSelectionView: View {
             at: mapItem.placemark.coordinate,
             name: mapItem.name
         )
+        
+        // Reset results state when new location selected
+        hasResults = false
+    }
+    
+    /// Format date in compact format (e.g., "11/28/25")
+    private func formatCompactDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "M/d/yy"
+        return formatter.string(from: date)
+    }
+    
+    /// Clear all results and allow new location selection
+    private func clearResults() {
+        withAnimation(.spring(response: 0.3)) {
+            hasResults = false
+            viewModel.minuteIntersections = []
+            viewModel.selectedLocation = nil
+            viewModel.calculationState = nil
+            viewModel.showCalculationSheet = false
+        }
     }
     
 }
@@ -240,6 +288,7 @@ struct InteractiveMapView: UIViewRepresentable {
     @Binding var region: MKCoordinateRegion
     let selectedLocation: Location?
     let minuteIntersections: [MinuteIntersection]
+    let hasResults: Bool
     let onLocationSelected: (CLLocationCoordinate2D) -> Void
     
     func makeUIView(context: Context) -> MKMapView {
@@ -259,6 +308,9 @@ struct InteractiveMapView: UIViewRepresentable {
     }
     
     func updateUIView(_ mapView: MKMapView, context: Context) {
+        // Update coordinator's hasResults flag
+        context.coordinator.hasResults = hasResults
+        
         // Update region if needed
         if !mapView.region.isEqual(to: region, tolerance: 0.001) {
             mapView.setRegion(region, animated: true)
@@ -285,12 +337,17 @@ struct InteractiveMapView: UIViewRepresentable {
     
     class Coordinator: NSObject, MKMapViewDelegate {
         let parent: InteractiveMapView
+        var hasResults: Bool = false
         
         init(_ parent: InteractiveMapView) {
             self.parent = parent
+            self.hasResults = parent.hasResults
         }
         
         @objc func handleMapTap(_ gesture: UITapGestureRecognizer) {
+            // Don't allow new location selection if results exist
+            guard !hasResults else { return }
+            
             let mapView = gesture.view as! MKMapView
             let touchPoint = gesture.location(in: mapView)
             let coordinate = mapView.convert(touchPoint, toCoordinateFrom: mapView)

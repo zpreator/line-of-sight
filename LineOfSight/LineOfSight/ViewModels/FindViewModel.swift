@@ -26,6 +26,8 @@ class FindViewModel: ObservableObject {
     @Published var selectedCelestialObject: CelestialObject = .sun
     @Published var targetDate = Date()
     @Published var minuteIntersections: [MinuteIntersection] = []
+    @Published var calculationState: CalculationState?
+    @Published var showCalculationSheet = false
     
     // MARK: - Private Properties
     private let locationService: LocationService
@@ -160,17 +162,20 @@ class FindViewModel: ObservableObject {
         
         isLoading = true
         errorMessage = nil
-        
-        print("\n🔵 ====== Starting Per-Minute Intersection Calculation ======")
-        print("🔵 POI: \(location.coordinate.latitude), \(location.coordinate.longitude)")
-        print("🔵 Elevation: \(location.elevation)m")
-        print("🔵 Date: \(targetDate)")
+        showCalculationSheet = true
         
         let calendar = Calendar.current
         let startDate = calendar.startOfDay(for: targetDate)
         
-        // Pre-calculate all sun positions for the day (minimize SwiftAA calls)
-        print("☀️ Pre-calculating sun positions for 1440 minutes...")
+        // Step 1: Pre-calculate all sun positions
+        calculationState = .calculating(CalculationProgress(
+            currentStep: .preparingSunPositions,
+            sunPositionsCalculated: 0,
+            totalSunPositions: 1440,
+            intersectionsFound: 0,
+            totalIntersectionsProcessed: 0
+        ))
+        
         var sunPositions: [(minute: Int, date: Date, azimuth: Double, elevation: Double)] = []
         
         for minute in 0..<1440 {
@@ -180,6 +185,17 @@ class FindViewModel: ObservableObject {
                 at: eventDate,
                 coordinate: location.coordinate
             )
+            
+            // Update progress every 100 minutes
+            if minute % 100 == 0 {
+                calculationState = .calculating(CalculationProgress(
+                    currentStep: .preparingSunPositions,
+                    sunPositionsCalculated: minute,
+                    totalSunPositions: 1440,
+                    intersectionsFound: 0,
+                    totalIntersectionsProcessed: 0
+                ))
+            }
             
             // Only include times when sun is above horizon with minimum elevation
             let minimumSunElevation = 2.0  // degrees
@@ -193,13 +209,21 @@ class FindViewModel: ObservableObject {
             }
         }
         
-        print("✅ Found \(sunPositions.count) valid sun positions (above \(2.0)° elevation)")
-        print("🔄 Starting concurrent ray marching for \(sunPositions.count) positions...")
+        // Step 2: Process ray intersections concurrently
+        calculationState = .calculating(CalculationProgress(
+            currentStep: .calculatingIntersections,
+            sunPositionsCalculated: 1440,
+            totalSunPositions: 1440,
+            intersectionsFound: 0,
+            totalIntersectionsProcessed: 0
+        ))
         
-        // Process ray intersections concurrently using TaskGroup
-        let intersections = await withTaskGroup(of: MinuteIntersection?.self, returning: [MinuteIntersection].self) { group in
+        let intersections = await withTaskGroup(of: (MinuteIntersection?, Int).self, returning: [MinuteIntersection].self) { group in
+            var processedCount = 0
+            var foundCount = 0
+            
             // Add tasks for each valid sun position
-            for sunPos in sunPositions {
+            for (index, sunPos) in sunPositions.enumerated() {
                 group.addTask {
                     // Convert sun direction to ENU
                     let sunDirectionENU = CoordinateUtils.azAltToENU(
@@ -219,25 +243,40 @@ class FindViewModel: ObservableObject {
                     ) {
                         let distance = location.coordinate.distance(to: intersectionCoord)
                         
-                        return MinuteIntersection(
+                        return (MinuteIntersection(
                             minute: sunPos.minute,
                             time: sunPos.date,
                             coordinate: intersectionCoord,
                             sunAzimuth: sunPos.azimuth,
                             sunElevation: sunPos.elevation,
                             distance: distance
-                        )
+                        ), index)
                     }
                     
-                    return nil
+                    return (nil, index)
                 }
             }
             
-            // Collect all results
+            // Collect results and update progress
             var results: [MinuteIntersection] = []
-            for await intersection in group {
-                if let intersection = intersection {
-                    results.append(intersection)
+            for await (intersection, index) in group {
+                processedCount += 1
+                if intersection != nil {
+                    foundCount += 1
+                    results.append(intersection!)
+                }
+                
+                // Update progress every 10 intersections
+                if processedCount % 10 == 0 {
+                    await MainActor.run {
+                        self.calculationState = .calculating(CalculationProgress(
+                            currentStep: .calculatingIntersections,
+                            sunPositionsCalculated: 1440,
+                            totalSunPositions: 1440,
+                            intersectionsFound: foundCount,
+                            totalIntersectionsProcessed: processedCount
+                        ))
+                    }
                 }
             }
             
@@ -245,13 +284,75 @@ class FindViewModel: ObservableObject {
             return results.sorted { $0.minute < $1.minute }
         }
         
-        print("\n🔵 ====== Calculation Complete ======")
-        print("🔵 Found \(intersections.count) intersections out of \(sunPositions.count) valid sun positions\n")
+        // Step 3: Finalize
+        calculationState = .calculating(CalculationProgress(
+            currentStep: .finishing,
+            sunPositionsCalculated: 1440,
+            totalSunPositions: 1440,
+            intersectionsFound: intersections.count,
+            totalIntersectionsProcessed: sunPositions.count
+        ))
+        
+        // Brief delay to show finishing state
+        try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
         
         await MainActor.run {
             self.minuteIntersections = intersections
             self.isLoading = false
+            
+            // Calculate summary
+            if !intersections.isEmpty {
+                let distances = intersections.map { $0.distance }
+                let avgDistance = distances.reduce(0, +) / Double(distances.count)
+                let minDistance = distances.min() ?? 0
+                let maxDistance = distances.max() ?? 0
+                
+                let times = intersections.map { $0.time }
+                let timeRange = times.min()!...times.max()!
+                
+                self.calculationState = .completed(CalculationSummary(
+                    poiName: location.name ?? "Selected Location",
+                    date: targetDate,
+                    celestialObject: selectedCelestialObject,
+                    totalIntersections: intersections.count,
+                    timeRange: timeRange,
+                    averageDistance: avgDistance,
+                    closestDistance: minDistance,
+                    farthestDistance: maxDistance
+                ))
+            } else {
+                self.calculationState = .completed(CalculationSummary(
+                    poiName: location.name ?? "Selected Location",
+                    date: targetDate,
+                    celestialObject: selectedCelestialObject,
+                    totalIntersections: 0,
+                    timeRange: nil,
+                    averageDistance: 0,
+                    closestDistance: 0,
+                    farthestDistance: 0
+                ))
+            }
         }
+    }
+    
+    // MARK: - Sheet Control Methods
+    
+    /// Dismiss the calculation sheet
+    func dismissCalculationSheet() {
+        showCalculationSheet = false
+        // Keep calculationState so results can be shown again
+    }
+    
+    /// View results after calculation
+    func viewCalculationResults() {
+        showCalculationSheet = false
+        // Results are already on the map
+    }
+    
+    /// Save calculation to history
+    func saveCalculation() {
+        // TODO: Implement save functionality
+        showCalculationSheet = false
     }
     
     /// Find the best alignment time for the current selection
