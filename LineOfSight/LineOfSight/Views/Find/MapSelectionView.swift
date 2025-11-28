@@ -22,7 +22,7 @@ struct MapSelectionView: View {
             InteractiveMapView(
                 region: $viewModel.mapRegion,
                 selectedLocation: viewModel.selectedLocation,
-                hourlyIntersections: viewModel.hourlyIntersections,
+                minuteIntersections: viewModel.minuteIntersections,
                 onLocationSelected: { coordinate in
                     viewModel.selectLocation(at: coordinate)
                 }
@@ -110,7 +110,7 @@ struct MapSelectionView: View {
                     if viewModel.selectedLocation != nil {
                         Button(action: {
                             Task {
-                                await viewModel.calculateHourlyIntersections()
+                                await viewModel.calculateMinuteIntersections()
                             }
                         }) {
                             HStack {
@@ -126,13 +126,13 @@ struct MapSelectionView: View {
                         }
                         
                         // Clear button if intersections are showing
-                        if !viewModel.hourlyIntersections.isEmpty {
+                        if !viewModel.minuteIntersections.isEmpty {
                             Button(action: {
-                                viewModel.hourlyIntersections = []
+                                viewModel.minuteIntersections = []
                             }) {
                                 HStack {
                                     Image(systemName: "trash")
-                                    Text("Clear Intersections (\(viewModel.hourlyIntersections.count))")
+                                    Text("Clear Intersections (\(viewModel.minuteIntersections.count))")
                                 }
                                 .font(.subheadline)
                                 .foregroundColor(.red)
@@ -156,7 +156,7 @@ struct MapSelectionView: View {
                 
                 VStack(spacing: 12) {
                     ProgressView()
-                    if !viewModel.hourlyIntersections.isEmpty {
+                    if !viewModel.minuteIntersections.isEmpty {
                         Text("Calculating intersections...")
                     } else {
                         Text("Getting elevation data...")
@@ -192,7 +192,7 @@ struct MapSelectionView: View {
 struct InteractiveMapView: UIViewRepresentable {
     @Binding var region: MKCoordinateRegion
     let selectedLocation: Location?
-    let hourlyIntersections: [HourlyIntersection]
+    let minuteIntersections: [MinuteIntersection]
     let onLocationSelected: (CLLocationCoordinate2D) -> Void
     
     func makeUIView(context: Context) -> MKMapView {
@@ -225,9 +225,9 @@ struct InteractiveMapView: UIViewRepresentable {
             mapView.addAnnotation(annotation)
         }
         
-        // Add hourly intersection annotations
-        for intersection in hourlyIntersections {
-            let annotation = HourlyIntersectionAnnotation(intersection: intersection)
+        // Add minute intersection annotations
+        for intersection in minuteIntersections {
+            let annotation = MinuteIntersectionAnnotation(intersection: intersection)
             mapView.addAnnotation(annotation)
         }
     }
@@ -265,15 +265,18 @@ struct InteractiveMapView: UIViewRepresentable {
                 return nil
             }
             
-            // Hourly intersection annotations
-            if let intersectionAnnotation = annotation as? HourlyIntersectionAnnotation {
+            // Minute intersection annotations
+            if let intersectionAnnotation = annotation as? MinuteIntersectionAnnotation {
                 let identifier = "IntersectionPin"
                 let annotationView = mapView.dequeueReusableAnnotationView(withIdentifier: identifier) as? MKMarkerAnnotationView
                     ?? MKMarkerAnnotationView(annotation: annotation, reuseIdentifier: identifier)
                 
                 annotationView.annotation = annotation
                 annotationView.markerTintColor = .systemBlue
-                annotationView.glyphText = "\(intersectionAnnotation.intersection.hour)"
+                // Show hour:minute instead of just hour
+                let hour = intersectionAnnotation.intersection.minute / 60
+                let minute = intersectionAnnotation.intersection.minute % 60
+                annotationView.glyphText = String(format: "%d:%02d", hour, minute)
                 annotationView.canShowCallout = true
                 annotationView.displayPriority = .defaultLow
                 
@@ -322,17 +325,17 @@ class LocationAnnotation: NSObject, MKAnnotation {
     }
 }
 
-// MARK: - Hourly Intersection Annotation
+// MARK: - Minute Intersection Annotation
 
-class HourlyIntersectionAnnotation: NSObject, MKAnnotation {
-    let intersection: HourlyIntersection
+class MinuteIntersectionAnnotation: NSObject, MKAnnotation {
+    let intersection: MinuteIntersection
     
     var coordinate: CLLocationCoordinate2D {
         return intersection.coordinate
     }
     
     var title: String? {
-        return intersection.hourLabel
+        return intersection.timeLabel
     }
     
     var subtitle: String? {
@@ -342,7 +345,7 @@ class HourlyIntersectionAnnotation: NSObject, MKAnnotation {
                      intersection.distance / 1000)
     }
     
-    init(intersection: HourlyIntersection) {
+    init(intersection: MinuteIntersection) {
         self.intersection = intersection
     }
 }

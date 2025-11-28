@@ -42,8 +42,11 @@ actor TerrainIntersector {
     
     private let demService: DEMService
     
-    /// Step size for ray marching in meters
-    private let stepSize: Double = 15.0
+    /// Coarse step size for initial ray marching in meters
+    private let coarseStepSize: Double = 500.0
+    
+    /// Binary search tolerance for intersection refinement in meters
+    private let binarySearchTolerance: Double = 1.0
     
     // MARK: - Initialization
     
@@ -54,6 +57,7 @@ actor TerrainIntersector {
     // MARK: - Public Methods
     
     /// Find where a ray from a POI intersects the terrain
+    /// Uses coarse stepping (500m) followed by binary search refinement (1m precision)
     /// - Parameters:
     ///   - poi: Point of interest coordinate
     ///   - poiElevation: Elevation of the POI in meters
@@ -71,36 +75,25 @@ actor TerrainIntersector {
 
         // Check if the ray immediately points underground (negative z-component)
         let tolerance: Double = -0.2 // Allow a small tolerance for near-horizontal rays
-        print("Z direction: \(direction.z)")
         if direction.z < tolerance {
-            print("  🚫 Ray immediately points underground. No intersection.")
             return nil
         }
-        
 
-        // Starting position in ENU coordinates (relative to POI)
-        // Start with a minimum offset to avoid intersecting at the POI itself
+        // Starting position - start with a minimum offset to avoid intersecting at the POI itself
         let minOffset = 100.0  // Start checking 100m away from POI
-        var currentENU = direction * minOffset
         var currentDistance: Double = minOffset
-
-        // Safety limit: max number of iterations
-        let maxIterations = Int((maxDistanceMeters - minOffset) / stepSize) + 1
-        var iterationCount = 0
 
         // Track failed elevation lookups
         var consecutiveFailures = 0
-        let maxConsecutiveFailures = 20  // Stop if 20 consecutive elevation lookups fail
+        let maxConsecutiveFailures = 10  // Stop if 10 consecutive elevation lookups fail
+        
+        // Track the last position that was above terrain for binary search
+        var lastAboveDistance: Double? = nil
 
-        // Step along the ray
-        while currentDistance < maxDistanceMeters && iterationCount < maxIterations {
-            iterationCount += 1
-
-            // Move to next step
-            currentDistance += stepSize
-            currentENU = direction * currentDistance
-
-            // Convert ENU position to lat/lon
+        // Coarse step along the ray using 500m steps
+        while currentDistance < maxDistanceMeters {
+            // Calculate current position
+            let currentENU = direction * currentDistance
             let currentCoordinate = CoordinateUtils.enuToCoordinate(
                 enuOffset: currentENU,
                 origin: poi
@@ -117,30 +110,29 @@ actor TerrainIntersector {
                     // Too many failures, likely out of coverage area
                     return nil
                 }
+                currentDistance += coarseStepSize
                 continue
             }
 
             // Reset failure counter on successful lookup
             consecutiveFailures = 0
 
-            // Log every 500m
-            if Int(currentDistance) % 500 == 0 {
-                print("  📍 Step \(iterationCount): dist=\(String(format: "%.0f", currentDistance))m, ENU=(\(String(format: "%.1f", currentENU.x)),\(String(format: "%.1f", currentENU.y)),\(String(format: "%.1f", currentENU.z))), coord=(\(String(format: "%.6f", currentCoordinate.latitude)),\(String(format: "%.6f", currentCoordinate.longitude))), rayElev=\(String(format: "%.1f", rayElevation))m, terrainElev=\(String(format: "%.1f", terrainElevation))m")
-            }
-
             // Check for intersection (ray elevation <= terrain elevation)
             if rayElevation <= terrainElevation {
-                print("  ✅ INTERSECTION! dist=\(String(format: "%.0f", currentDistance))m, rayElev=\(String(format: "%.1f", rayElevation))m <= terrainElev=\(String(format: "%.1f", terrainElevation))m")
-                // Found intersection!
-                // Optionally refine the intersection point with binary search
+                // Found intersection! Use binary search for refinement
+                let startDistance = lastAboveDistance ?? max(minOffset, currentDistance - coarseStepSize)
                 return await refineIntersection(
                     poi: poi,
                     poiElevation: poiElevation,
                     direction: direction,
-                    startDistance: currentDistance - stepSize,
+                    startDistance: startDistance,
                     endDistance: currentDistance
                 )
             }
+            
+            // Ray is still above terrain, continue
+            lastAboveDistance = currentDistance
+            currentDistance += coarseStepSize
         }
 
         // No intersection found within max distance
@@ -222,7 +214,7 @@ actor TerrainIntersector {
     
     // MARK: - Private Methods
     
-    /// Refine intersection point using binary search
+    /// Refine intersection point using binary search to 1m precision
     private func refineIntersection(
         poi: CLLocationCoordinate2D,
         poiElevation: Double,
@@ -233,14 +225,15 @@ actor TerrainIntersector {
         
         var low = startDistance
         var high = endDistance
-        let tolerance = 1.0 // 1 meter tolerance
         
-        while (high - low) > tolerance {
+        // Binary search until we reach 1m precision
+        while (high - low) > binarySearchTolerance {
             let mid = (low + high) / 2.0
             let midENU = direction * mid
             let midCoord = CoordinateUtils.enuToCoordinate(enuOffset: midENU, origin: poi)
             
             guard let terrainElev = await demService.elevation(at: midCoord) else {
+                // If we can't get elevation, return the high point (conservative)
                 break
             }
             
@@ -255,7 +248,7 @@ actor TerrainIntersector {
             }
         }
         
-        // Return the refined position
+        // Return the refined position (use high to be conservative)
         let finalENU = direction * high
         return CoordinateUtils.enuToCoordinate(enuOffset: finalENU, origin: poi)
     }

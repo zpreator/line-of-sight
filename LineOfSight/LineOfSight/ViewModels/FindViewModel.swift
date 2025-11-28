@@ -25,7 +25,7 @@ class FindViewModel: ObservableObject {
     )
     @Published var selectedCelestialObject: CelestialObject = .sun
     @Published var targetDate = Date()
-    @Published var hourlyIntersections: [HourlyIntersection] = []
+    @Published var minuteIntersections: [MinuteIntersection] = []
     
     // MARK: - Private Properties
     private let locationService: LocationService
@@ -152,101 +152,104 @@ class FindViewModel: ObservableObject {
         return positions
     }
     
-    /// Calculate hourly ray-terrain intersections for all 24 hours
-    func calculateHourlyIntersections() async {
+    /// Calculate per-minute ray-terrain intersections for the entire day
+    /// Uses concurrent processing with TaskGroup for optimal performance
+    /// Pre-calculates all sun positions to minimize SwiftAA calls
+    func calculateMinuteIntersections() async {
         guard let location = selectedLocation else { return }
         
         isLoading = true
         errorMessage = nil
         
-        print("\n🔵 ====== Starting Hourly Intersection Calculation ======")
+        print("\n🔵 ====== Starting Per-Minute Intersection Calculation ======")
         print("🔵 POI: \(location.coordinate.latitude), \(location.coordinate.longitude)")
         print("🔵 Elevation: \(location.elevation)m")
         print("🔵 Date: \(targetDate)")
         
-        var intersections: [HourlyIntersection] = []
         let calendar = Calendar.current
         let startDate = calendar.startOfDay(for: targetDate)
         
-        // Calculate for each hour of the day
-        for hour in 0..<24 {
-            print("\n⏰ === Hour \(hour)/24 ===")
-            
-            let eventDate = startDate.addingTimeInterval(TimeInterval(hour * 3600))
-            
-            // Get sun position at this hour
+        // Pre-calculate all sun positions for the day (minimize SwiftAA calls)
+        print("☀️ Pre-calculating sun positions for 1440 minutes...")
+        var sunPositions: [(minute: Int, date: Date, azimuth: Double, elevation: Double)] = []
+        
+        for minute in 0..<1440 {
+            let eventDate = startDate.addingTimeInterval(TimeInterval(minute * 60))
             let sunPosition = AstronomicalCalculations.position(
                 for: selectedCelestialObject,
                 at: eventDate,
                 coordinate: location.coordinate
             )
             
-            print("☀️ Sun position - Azimuth: \(String(format: "%.1f", sunPosition.azimuth))°, Elevation: \(String(format: "%.1f", sunPosition.elevation))°")
-            
-            // Only calculate if sun is above horizon with minimum elevation
-            // Skip very low sun angles as they result in nearly horizontal rays
-            // that may not intersect terrain within reasonable distance
+            // Only include times when sun is above horizon with minimum elevation
             let minimumSunElevation = 2.0  // degrees
             if sunPosition.elevation > minimumSunElevation {
-                print("✅ Sun above \(minimumSunElevation)° elevation, calculating intersection...")
-                
-                // Convert sun direction to ENU
-                let sunDirectionENU = CoordinateUtils.azAltToENU(
+                sunPositions.append((
+                    minute: minute,
+                    date: eventDate,
                     azimuth: sunPosition.azimuth,
-                    altitude: sunPosition.elevation
-                )
-                
-                // We want to find where a photographer should stand to see the sun behind the POI
-                // This means casting a ray FROM the sun, THROUGH the POI, to the ground
-                // The sun direction vector points TOWARD the sun
-                // We need the opposite - the direction a ray from the sun would travel
-                // So we negate it to get the direction from sun through POI
-                let rayDirection = -sunDirectionENU
-                
-                print("📐 Ray direction (ENU): (\(String(format: "%.3f", rayDirection.x)), \(String(format: "%.3f", rayDirection.y)), \(String(format: "%.3f", rayDirection.z)))")
-                print("🔍 Sun is at elevation \(String(format: "%.1f", sunPosition.elevation))°, ray should descend (negative Z)")
-                
-                // Adjust max distance based on sun elevation
-                // Lower sun = more horizontal ray = need to search closer
-                let maxDistance = 50_000.0
-                
-                print("🎯 Max search distance: \(String(format: "%.0f", maxDistance/1000))km")
-                
-                // Find intersection
-                if let intersectionCoord = await terrainIntersector.intersectRay(
-                    from: location.coordinate,
-                    poiElevation: location.elevation,
-                    directionENU: rayDirection,
-                    maxDistanceMeters: maxDistance
-                ) {
-                    let distance = location.coordinate.distance(to: intersectionCoord)
-                    
-                    print("✅ Found intersection at \(intersectionCoord.latitude), \(intersectionCoord.longitude)")
-                    print("📏 Distance: \(String(format: "%.0f", distance))m")
-                    
-                    intersections.append(HourlyIntersection(
-                        hour: hour,
-                        time: eventDate,
-                        coordinate: intersectionCoord,
-                        sunAzimuth: sunPosition.azimuth,
-                        sunElevation: sunPosition.elevation,
-                        distance: distance
-                    ))
-                } else {
-                    print("❌ No intersection found within \(String(format: "%.0f", maxDistance/1000))km")
-                }
-            } else if sunPosition.elevation > 0 {
-                print("⚠️ Sun too low (\(String(format: "%.1f", sunPosition.elevation))°), skipping...")
-            } else {
-                print("⬇️ Sun below horizon, skipping...")
+                    elevation: sunPosition.elevation
+                ))
             }
         }
         
+        print("✅ Found \(sunPositions.count) valid sun positions (above \(2.0)° elevation)")
+        print("🔄 Starting concurrent ray marching for \(sunPositions.count) positions...")
+        
+        // Process ray intersections concurrently using TaskGroup
+        let intersections = await withTaskGroup(of: MinuteIntersection?.self, returning: [MinuteIntersection].self) { group in
+            // Add tasks for each valid sun position
+            for sunPos in sunPositions {
+                group.addTask {
+                    // Convert sun direction to ENU
+                    let sunDirectionENU = CoordinateUtils.azAltToENU(
+                        azimuth: sunPos.azimuth,
+                        altitude: sunPos.elevation
+                    )
+                    
+                    // Ray direction: from sun through POI (negate sun direction)
+                    let rayDirection = -sunDirectionENU
+                    
+                    // Find intersection using optimized ray marching
+                    if let intersectionCoord = await self.terrainIntersector.intersectRay(
+                        from: location.coordinate,
+                        poiElevation: location.elevation,
+                        directionENU: rayDirection,
+                        maxDistanceMeters: 50_000.0
+                    ) {
+                        let distance = location.coordinate.distance(to: intersectionCoord)
+                        
+                        return MinuteIntersection(
+                            minute: sunPos.minute,
+                            time: sunPos.date,
+                            coordinate: intersectionCoord,
+                            sunAzimuth: sunPos.azimuth,
+                            sunElevation: sunPos.elevation,
+                            distance: distance
+                        )
+                    }
+                    
+                    return nil
+                }
+            }
+            
+            // Collect all results
+            var results: [MinuteIntersection] = []
+            for await intersection in group {
+                if let intersection = intersection {
+                    results.append(intersection)
+                }
+            }
+            
+            // Sort by minute
+            return results.sorted { $0.minute < $1.minute }
+        }
+        
         print("\n🔵 ====== Calculation Complete ======")
-        print("🔵 Found \(intersections.count) intersections out of 24 hours\n")
+        print("🔵 Found \(intersections.count) intersections out of \(sunPositions.count) valid sun positions\n")
         
         await MainActor.run {
-            self.hourlyIntersections = intersections
+            self.minuteIntersections = intersections
             self.isLoading = false
         }
     }
@@ -353,9 +356,9 @@ struct AlignmentEvent: Identifiable {
     let distance: Double // Distance from photographer to landmark
 }
 
-struct HourlyIntersection: Identifiable {
+struct MinuteIntersection: Identifiable {
     let id = UUID()
-    let hour: Int
+    let minute: Int  // Minute of the day (0-1439)
     let time: Date
     let coordinate: CLLocationCoordinate2D
     let sunAzimuth: Double
@@ -368,7 +371,7 @@ struct HourlyIntersection: Identifiable {
         return formatter.string(from: time)
     }
     
-    var hourLabel: String {
+    var timeLabel: String {
         let formatter = DateFormatter()
         formatter.dateFormat = "HH:mm"
         return formatter.string(from: time)
