@@ -208,14 +208,7 @@ class FindViewModel: ObservableObject {
                 
                 // Adjust max distance based on sun elevation
                 // Lower sun = more horizontal ray = need to search closer
-                let maxDistance: Double
-                if sunPosition.elevation < 5 {
-                    maxDistance = 10_000.0  // 10km for very low sun
-                } else if sunPosition.elevation < 10 {
-                    maxDistance = 25_000.0  // 25km for low sun
-                } else {
-                    maxDistance = 50_000.0  // 50km for higher sun
-                }
+                let maxDistance = 50_000.0
                 
                 print("🎯 Max search distance: \(String(format: "%.0f", maxDistance/1000))km")
                 
