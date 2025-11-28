@@ -15,6 +15,7 @@ struct MapSelectionView: View {
     @StateObject private var viewModel = FindViewModel()
     @State private var showingCelestialObjectPicker = false
     @State private var showingDatePicker = false
+    @State private var isSearching = false
     
     var body: some View {
         ZStack {
@@ -31,29 +32,58 @@ struct MapSelectionView: View {
             
             // Overlay Controls
             VStack {
-                // Top Control Bar
-                HStack {
-                    // User Location Button
-                    Button(action: viewModel.centerOnUserLocation) {
-                        Image(systemName: "location.circle.fill")
-                            .font(.title2)
-                            .foregroundColor(.white)
-                            .background(Circle().fill(.black.opacity(0.7)))
-                            .frame(width: 44, height: 44)
+                // Search Bar or Top Control Bar
+                if isSearching {
+                    LocationSearchBar(
+                        isSearching: $isSearching,
+                        regionBias: viewModel.mapRegion
+                    ) { mapItem in
+                        handleSearchSelection(mapItem)
                     }
-                    
-                    Spacer()
-                    
-                    // Map Style Toggle (Future Implementation)
-                    Button(action: {}) {
-                        Image(systemName: "map")
-                            .font(.title2)
-                            .foregroundColor(.white)
-                            .background(Circle().fill(.black.opacity(0.7)))
-                            .frame(width: 44, height: 44)
+                    .padding(.horizontal)
+                    .padding(.top)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                } else {
+                    HStack {
+                        // Search Button
+                        Button(action: {
+                            withAnimation(.spring(response: 0.3)) {
+                                isSearching = true
+                            }
+                        }) {
+                            HStack(spacing: 8) {
+                                Image(systemName: "magnifyingglass")
+                                Text("Search for a location")
+                                    .foregroundColor(.secondary)
+                                Spacer()
+                            }
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 12)
+                            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+                        }
+                        .buttonStyle(.plain)
+                        
+                        // User Location Button
+                        Button(action: viewModel.centerOnUserLocation) {
+                            Image(systemName: "location.circle.fill")
+                                .font(.title2)
+                                .foregroundColor(.white)
+                                .frame(width: 44, height: 44)
+                                .background(Circle().fill(.black.opacity(0.7)))
+                        }
+                        
+                        // Map Style Toggle (Future Implementation)
+                        Button(action: {}) {
+                            Image(systemName: "map")
+                                .font(.title2)
+                                .foregroundColor(.white)
+                                .frame(width: 44, height: 44)
+                                .background(Circle().fill(.black.opacity(0.7)))
+                        }
                     }
+                    .padding()
+                    .transition(.move(edge: .top).combined(with: .opacity))
                 }
-                .padding()
                 
                 Spacer()
                 
@@ -183,6 +213,23 @@ struct MapSelectionView: View {
         }
 
         .navigationBarHidden(true)
+    }
+    
+    // MARK: - Helper Methods
+    
+    /// Handle selection from search results
+    private func handleSearchSelection(_ mapItem: MKMapItem) {
+        // Center map on selected location
+        viewModel.mapRegion = MKCoordinateRegion(
+            center: mapItem.placemark.coordinate,
+            span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
+        )
+        
+        // Select the location
+        viewModel.selectLocation(
+            at: mapItem.placemark.coordinate,
+            name: mapItem.name
+        )
     }
     
 }
