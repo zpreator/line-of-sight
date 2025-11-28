@@ -35,10 +35,15 @@ class FindViewModel: ObservableObject {
     private let sunPathService = SunPathService()
     private let terrainIntersector = TerrainIntersector()
     private var cancellables = Set<AnyCancellable>()
+    private weak var calculationStore: CalculationStore?
+    
+    @Published var showSaveDialog = false
+    @Published var saveName = ""
     
     // MARK: - Initialization
-    init(locationService: LocationService? = nil) {
+    init(locationService: LocationService? = nil, calculationStore: CalculationStore? = nil) {
         self.locationService = locationService ?? LocationService()
+        self.calculationStore = calculationStore
         setupLocationObserver()
         requestLocationPermission()
     }
@@ -351,8 +356,80 @@ class FindViewModel: ObservableObject {
     
     /// Save calculation to history
     func saveCalculation() {
-        // TODO: Implement save functionality
+        guard let location = selectedLocation,
+              !minuteIntersections.isEmpty,
+              let store = calculationStore else {
+            showCalculationSheet = false
+            return
+        }
+        
+        // Set default name
+        saveName = location.name ?? "Saved Location"
+        showSaveDialog = true
+    }
+    
+    /// Complete the save with the provided name
+    func completeSave() {
+        guard let location = selectedLocation,
+              !minuteIntersections.isEmpty,
+              let store = calculationStore,
+              !saveName.isEmpty else {
+            return
+        }
+        
+        store.saveCalculation(
+            name: saveName,
+            landmark: location,
+            celestialObject: selectedCelestialObject,
+            targetDate: targetDate,
+            intersections: minuteIntersections
+        )
+        
+        showSaveDialog = false
         showCalculationSheet = false
+    }
+    
+    /// Load a saved calculation into the view
+    func loadSavedCalculation(_ calculation: SavedCalculation) {
+        // Restore the location
+        selectedLocation = calculation.landmark
+        
+        // Restore celestial object and date
+        selectedCelestialObject = calculation.celestialObject
+        targetDate = calculation.targetDate
+        
+        // Restore minute intersections from saved data
+        minuteIntersections = calculation.intersections.map { saved in
+            MinuteIntersection(
+                minute: saved.minute,
+                time: saved.time,
+                coordinate: CLLocationCoordinate2D(
+                    latitude: saved.latitude,
+                    longitude: saved.longitude
+                ),
+                sunAzimuth: saved.sunAzimuth,
+                sunElevation: saved.sunElevation,
+                distance: saved.distance
+            )
+        }
+        
+        // Center map on the location
+        mapRegion = MKCoordinateRegion(
+            center: calculation.landmark.coordinate,
+            span: MKCoordinateSpan(latitudeDelta: 0.1, longitudeDelta: 0.1)
+        )
+        
+        // Show completed state
+        calculationState = .completed(CalculationSummary(
+            poiName: calculation.landmark.name ?? "Saved Location",
+            date: calculation.targetDate,
+            celestialObject: calculation.celestialObject,
+            totalIntersections: calculation.summary.totalIntersections,
+            timeRange: calculation.intersections.isEmpty ? nil : calculation.intersections.first!.time...calculation.intersections.last!.time,
+            averageDistance: calculation.summary.averageDistance,
+            closestDistance: calculation.summary.closestDistance,
+            farthestDistance: calculation.summary.farthestDistance
+        ))
     }
     
     /// Find the best alignment time for the current selection

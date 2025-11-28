@@ -12,11 +12,17 @@ import UIKit
 struct MapSelectionView: View {
     let calculationStore: CalculationStore
     @Binding var selectedTab: Int
-    @StateObject private var viewModel = FindViewModel()
+    @StateObject private var viewModel: FindViewModel
     @State private var showingCelestialObjectPicker = false
     @State private var showingDatePicker = false
     @State private var isSearching = false
     @State private var hasResults = false
+    
+    init(calculationStore: CalculationStore, selectedTab: Binding<Int>) {
+        self.calculationStore = calculationStore
+        self._selectedTab = selectedTab
+        self._viewModel = StateObject(wrappedValue: FindViewModel(calculationStore: calculationStore))
+    }
     
     var body: some View {
         ZStack {
@@ -238,8 +244,46 @@ struct MapSelectionView: View {
         .sheet(isPresented: $showingDatePicker) {
             DatePickerView(selectedDate: $viewModel.targetDate)
         }
-
+        .sheet(isPresented: $viewModel.showSaveDialog) {
+            NavigationView {
+                VStack(spacing: 20) {
+                    Text("Save Calculation")
+                        .font(.title2)
+                        .fontWeight(.semibold)
+                    
+                    TextField("Name this location", text: $viewModel.saveName)
+                        .textFieldStyle(.roundedBorder)
+                        .padding(.horizontal)
+                    
+                    Spacer()
+                }
+                .padding()
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarLeading) {
+                        Button("Cancel") {
+                            viewModel.showSaveDialog = false
+                        }
+                    }
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        Button("Save") {
+                            viewModel.completeSave()
+                        }
+                        .disabled(viewModel.saveName.isEmpty)
+                    }
+                }
+            }
+        }
         .navigationBarHidden(true)
+        .onAppear {
+            // Check if we need to load a saved calculation
+            if let loadId = calculationStore.loadedCalculationId,
+               let calculation = calculationStore.savedCalculations.first(where: { $0.id == loadId }) {
+                viewModel.loadSavedCalculation(calculation)
+                hasResults = true
+                calculationStore.loadedCalculationId = nil // Clear the flag
+            }
+        }
     }
     
     // MARK: - Helper Methods
