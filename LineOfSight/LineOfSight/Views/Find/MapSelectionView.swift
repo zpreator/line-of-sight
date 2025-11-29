@@ -129,7 +129,7 @@ struct MapSelectionView: View {
                                 .foregroundColor(.white)
                                 .padding(.horizontal, 12)
                                 .padding(.vertical, 8)
-                                .background(.orange, in: RoundedRectangle(cornerRadius: 8))
+                                .background(Color.accentColor, in: RoundedRectangle(cornerRadius: 8))
                             }
                             .buttonStyle(.plain)
                             .transition(.scale.combined(with: .opacity))
@@ -173,7 +173,7 @@ struct MapSelectionView: View {
                                 .foregroundColor(.white)
                                 .padding(.horizontal, 20)
                                 .padding(.vertical, 12)
-                                .background(.orange, in: Capsule())
+                                .background(Color.accentColor, in: Capsule())
                             }
                             .shadow(color: .black.opacity(0.2), radius: 8, y: 4)
                         }
@@ -574,7 +574,7 @@ struct LocationInfoCard: View {
                 // Data source note
                 Text("⚠️ Elevation from Mapzen DEM tiles may differ from Apple Maps visual terrain")
                     .font(.caption2)
-                    .foregroundColor(.orange)
+                    .foregroundColor(.accentColor)
                     .fixedSize(horizontal: false, vertical: true)
                 
                 HStack(spacing: 4) {
@@ -583,7 +583,7 @@ struct LocationInfoCard: View {
                     
                     if viewModel.isLoading {
                         Text("• Fetching elevation...")
-                            .foregroundColor(.orange)
+                            .foregroundColor(.accentColor)
                     }
                 }
                 .font(.caption2)
@@ -600,7 +600,7 @@ struct LocationPromptCard: View {
         VStack(spacing: 8) {
             Image(systemName: "hand.tap")
                 .font(.title2)
-                .foregroundColor(.orange)
+                .foregroundColor(.accentColor)
             
             Text("Tap on the map to select a location")
                 .font(.subheadline)
@@ -637,7 +637,7 @@ struct CelestialObjectPicker: View {
                     
                     if object.id == selectedObject.id {
                         Image(systemName: "checkmark")
-                            .foregroundColor(.orange)
+                            .foregroundColor(.accentColor)
                     }
                 }
                 .contentShape(Rectangle())
@@ -873,7 +873,7 @@ struct TimelineEventCard: View {
     
     var qualityColor: Color {
         if event.alignmentQuality > 0.8 { return .green }
-        if event.alignmentQuality > 0.6 { return .orange }
+        if event.alignmentQuality > 0.6 { return Color.accentColor }
         if event.alignmentQuality > 0.3 { return .yellow }
         return .red
     }
@@ -929,7 +929,7 @@ struct BestTimeCard: View {
             HStack {
                 Text("#\(rank)")
                     .font(.headline)
-                    .foregroundColor(.orange)
+                    .foregroundColor(.accentColor)
                     .frame(width: 30, alignment: .leading)
                 
                 VStack(alignment: .leading) {

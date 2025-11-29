@@ -75,7 +75,7 @@ enum CalculationStep {
         case .preparingSunPositions:
             return "Calculating sun positions..."
         case .calculatingIntersections:
-            return "Finding photographer positions..."
+            return "Finding positions..."
         case .finishing:
             return "Finalizing results..."
         }
@@ -117,19 +117,19 @@ struct CalculatingView: View {
             // Progress Icon
             ZStack {
                 Circle()
-                    .stroke(Color.orange.opacity(0.2), lineWidth: 4)
+                    .stroke(Color.accentColor.opacity(0.2), lineWidth: 4)
                     .frame(width: 60, height: 60)
                 
                 Circle()
                     .trim(from: 0, to: overallProgress)
-                    .stroke(Color.orange, style: StrokeStyle(lineWidth: 4, lineCap: .round))
+                    .stroke(Color.accentColor, style: StrokeStyle(lineWidth: 4, lineCap: .round))
                     .frame(width: 60, height: 60)
                     .rotationEffect(.degrees(-90))
                     .animation(.easeInOut, value: overallProgress)
                 
                 Image(systemName: "scope")
                     .font(.title2)
-                    .foregroundColor(.orange)
+                    .foregroundColor(.accentColor)
             }
             
             VStack(spacing: 8) {
@@ -150,7 +150,7 @@ struct CalculatingView: View {
                             .frame(height: 8)
                         
                         RoundedRectangle(cornerRadius: 4)
-                            .fill(Color.orange)
+                            .fill(Color.accentColor)
                             .frame(width: geometry.size.width * overallProgress, height: 8)
                             .animation(.easeInOut, value: overallProgress)
                     }
@@ -245,7 +245,7 @@ struct ResultsSummaryView: View {
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
                         .padding()
-                        .background(Color.orange)
+                        .background(Color.accentColor)
                         .clipShape(RoundedRectangle(cornerRadius: 12))
                     }
                     
@@ -256,10 +256,10 @@ struct ResultsSummaryView: View {
                                 Text("Save")
                             }
                             .font(.subheadline)
-                            .foregroundColor(.orange)
+                            .foregroundColor(.accentColor)
                             .frame(maxWidth: .infinity)
                             .padding()
-                            .background(Color.orange.opacity(0.1))
+                            .background(Color.accentColor.opacity(0.1))
                             .clipShape(RoundedRectangle(cornerRadius: 12))
                         }
                         
@@ -291,7 +291,7 @@ struct ResultsSummaryView: View {
                             .foregroundColor(.white)
                             .frame(maxWidth: .infinity)
                             .padding()
-                            .background(Color.orange)
+                            .background(Color.accentColor)
                             .clipShape(RoundedRectangle(cornerRadius: 12))
                     }
                 }
@@ -326,7 +326,7 @@ struct StatCard: View {
         VStack(spacing: 8) {
             Image(systemName: icon)
                 .font(.title3)
-                .foregroundColor(.orange)
+                .foregroundColor(.accentColor)
             
             Text(value)
                 .font(.headline)

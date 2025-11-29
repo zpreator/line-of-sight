@@ -11,6 +11,20 @@ import MapKit
 struct ContentView: View {
     @State private var selectedTab = 0
     @StateObject private var calculationStore = CalculationStore()
+    @AppStorage("accentColor") private var accentColorName: String = "orange"
+    
+    private var accentColor: Color {
+        switch accentColorName {
+        case "blue": return .blue
+        case "purple": return .purple
+        case "red": return .red
+        case "green": return .green
+        case "yellow": return .yellow
+        case "pink": return .pink
+        case "teal": return .teal
+        default: return .orange
+        }
+    }
     
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -36,7 +50,8 @@ struct ContentView: View {
                 .tag(2)
         }
         .preferredColorScheme(.dark)
-        .tint(.orange)
+        .tint(accentColor)
+        .id(accentColorName) // Force re-render when accent color changes
     }
 }
 
@@ -68,10 +83,104 @@ struct HistoryView: View {
 }
 
 struct SettingsView: View {
+    @AppStorage("accentColor") private var accentColorName: String = "orange"
+    @AppStorage("mapType") private var mapType: String = "standard"
+    @AppStorage("showCoordinates") private var showCoordinates: Bool = true
+    @AppStorage("distanceUnit") private var distanceUnit: String = "metric"
+    @AppStorage("elevationUnit") private var elevationUnit: String = "meters"
+    
+    private var accentColor: Color {
+        switch accentColorName {
+        case "blue": return .blue
+        case "purple": return .purple
+        case "red": return .red
+        case "green": return .green
+        case "yellow": return .yellow
+        case "pink": return .pink
+        case "teal": return .teal
+        default: return .orange
+        }
+    }
+    
     var body: some View {
         NavigationView {
-            Text("Settings View")
-                .navigationTitle("Settings")
+            List {
+                // Appearance Section
+                Section {
+                    NavigationLink(destination: AccentColorPickerView(selectedColor: $accentColorName)) {
+                        HStack {
+                            Text("Accent Color")
+                            Spacer()
+                            Image(systemName: "circle.fill")
+                                .foregroundStyle(accentColor)
+                                .font(.caption)
+                            Text(accentColorName.capitalized)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                } header: {
+                    Text("Appearance")
+                } footer: {
+                    Text("Changes the accent color used throughout the app")
+                }
+                
+                // Map Settings Section
+                Section {
+                    Picker("Map Type", selection: $mapType) {
+                        Label("Standard", systemImage: "map")
+                            .tag("standard")
+                        Label("Satellite", systemImage: "globe.americas.fill")
+                            .tag("satellite")
+                        Label("Hybrid", systemImage: "map.fill")
+                            .tag("hybrid")
+                    }
+                    
+                    Toggle("Show Coordinates", isOn: $showCoordinates)
+                } header: {
+                    Text("Map")
+                } footer: {
+                    Text("Configure map display preferences")
+                }
+                
+                // Units Section
+                Section {
+                    Picker("Distance Unit", selection: $distanceUnit) {
+                        Text("Metric (km)").tag("metric")
+                        Text("Imperial (mi)").tag("imperial")
+                    }
+                    
+                    Picker("Elevation Unit", selection: $elevationUnit) {
+                        Text("Meters").tag("meters")
+                        Text("Feet").tag("feet")
+                    }
+                } header: {
+                    Text("Units")
+                } footer: {
+                    Text("Choose your preferred units for measurements")
+                }
+                
+                // About Section
+                Section {
+                    HStack {
+                        Text("Version")
+                        Spacer()
+                        Text("1.0.0")
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    Link(destination: URL(string: "https://github.com/zpreator/line-of-sight")!) {
+                        HStack {
+                            Text("GitHub Repository")
+                            Spacer()
+                            Image(systemName: "arrow.up.forward.square")
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                } header: {
+                    Text("About")
+                }
+            }
+            .navigationTitle("Settings")
         }
         .navigationViewStyle(.stack)
     }
@@ -290,6 +399,53 @@ struct HistoryRow: View {
         switch type {
         case .sun: return .yellow
         }
+    }
+}
+
+struct AccentColorPickerView: View {
+    @Binding var selectedColor: String
+    @Environment(\.dismiss) private var dismiss
+    
+    private let colors: [(name: String, color: Color)] = [
+        ("orange", .orange),
+        ("blue", .blue),
+        ("purple", .purple),
+        ("red", .red),
+        ("green", .green),
+        ("yellow", .yellow),
+        ("pink", .pink),
+        ("teal", .teal)
+    ]
+    
+    var body: some View {
+        List {
+            ForEach(colors, id: \.name) { colorOption in
+                Button(action: {
+                    selectedColor = colorOption.name
+                    dismiss()
+                }) {
+                    HStack {
+                        Image(systemName: "circle.fill")
+                            .foregroundStyle(colorOption.color)
+                            .font(.title3)
+                        
+                        Text(colorOption.name.capitalized)
+                            .foregroundColor(.primary)
+                        
+                        Spacer()
+                        
+                        if selectedColor == colorOption.name {
+                            Image(systemName: "checkmark")
+                                .foregroundColor(colorOption.color)
+                                .font(.body.weight(.semibold))
+                        }
+                    }
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .navigationTitle("Accent Color")
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
 
