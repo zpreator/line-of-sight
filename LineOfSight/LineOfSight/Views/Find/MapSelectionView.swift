@@ -209,23 +209,26 @@ struct MapSelectionView: View {
             
             // Calculation Progress Sheet
             if viewModel.showCalculationSheet, let state = viewModel.calculationState {
-                VStack {
-                    Spacer()
-                    CalculationProgressSheet(
-                        state: state,
-                        onDismiss: {
-                            viewModel.dismissCalculationSheet()
-                        },
-                        onViewResults: {
-                            viewModel.viewCalculationResults()
-                        },
-                        onSave: {
-                            viewModel.saveCalculation()
-                        }
-                    )
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                GeometryReader { geometry in
+                    VStack {
+                        Spacer()
+                        CalculationProgressSheet(
+                            state: state,
+                            onDismiss: {
+                                viewModel.dismissCalculationSheet()
+                            },
+                            onViewResults: {
+                                viewModel.viewCalculationResults()
+                            },
+                            onSave: {
+                                viewModel.saveCalculation()
+                            }
+                        )
+                        .padding(.bottom, geometry.safeAreaInsets.bottom)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                    }
+                    .ignoresSafeArea()
                 }
-                .ignoresSafeArea()
             }
         }
         .animation(.spring(response: 0.4, dampingFraction: 0.8), value: viewModel.showCalculationSheet)

@@ -50,6 +50,7 @@ struct FindView: View {
             MapSelectionView(calculationStore: calculationStore, selectedTab: $selectedTab)
                 .navigationTitle("Find Location")
         }
+        .navigationViewStyle(.stack)
     }
 }
 
@@ -62,6 +63,7 @@ struct HistoryView: View {
             HistoryListView(calculationStore: calculationStore, selectedTab: $selectedTab)
                 .navigationTitle("History")
         }
+        .navigationViewStyle(.stack)
     }
 }
 
@@ -71,6 +73,7 @@ struct SettingsView: View {
             Text("Settings View")
                 .navigationTitle("Settings")
         }
+        .navigationViewStyle(.stack)
     }
 }
 
