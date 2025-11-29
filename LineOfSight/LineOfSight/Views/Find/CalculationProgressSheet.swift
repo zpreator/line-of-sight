@@ -15,6 +15,8 @@ struct CalculationProgressSheet: View {
     let onViewResults: () -> Void
     let onSave: () -> Void
     
+    @State private var dragOffset: CGFloat = 0
+    
     var body: some View {
         VStack(spacing: 0) {
             // Handle
@@ -23,6 +25,22 @@ struct CalculationProgressSheet: View {
                 .frame(width: 36, height: 5)
                 .padding(.top, 8)
                 .padding(.bottom, 16)
+                .gesture(
+                    DragGesture()
+                        .onChanged { value in
+                            // Only allow dragging down
+                            if value.translation.height > 0 {
+                                dragOffset = value.translation.height
+                            }
+                        }
+                        .onEnded { value in
+                            // Dismiss if dragged down more than 50 points
+                            if value.translation.height > 50 {
+                                onDismiss()
+                            }
+                            dragOffset = 0
+                        }
+                )
             
             // Content based on state
             switch state {
@@ -46,6 +64,7 @@ struct CalculationProgressSheet: View {
         .background(.ultraThinMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 20))
         .shadow(color: .black.opacity(0.2), radius: 20, y: -5)
+        .offset(y: dragOffset)
     }
 }
 
@@ -197,6 +216,28 @@ struct ResultsSummaryView: View {
                     .foregroundColor(.secondary)
             }
             
+            // Date and Celestial Object
+            HStack(spacing: 16) {
+                HStack(spacing: 6) {
+                    Image(systemName: "calendar")
+                        .foregroundColor(.secondary)
+                        .font(.caption)
+                    Text(formatDate(summary.date))
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                
+                HStack(spacing: 6) {
+                    Image(systemName: summary.celestialObject.type.icon)
+                        .foregroundColor(.secondary)
+                        .font(.caption)
+                    Text(summary.celestialObject.name)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+            .padding(.top, 4)
+            
             // Stats Grid
             HStack(spacing: 20) {
                 StatCard(
@@ -206,15 +247,9 @@ struct ResultsSummaryView: View {
                 )
                 
                 StatCard(
-                    icon: "ruler",
-                    value: formatDistance(summary.averageDistance),
-                    label: "Avg Distance"
-                )
-                
-                StatCard(
-                    icon: "arrow.up.right",
-                    value: formatDistance(summary.farthestDistance),
-                    label: "Farthest"
+                    icon: "location",
+                    value: formatDistance(summary.closestDistance),
+                    label: "Closest"
                 )
             }
             
@@ -312,6 +347,13 @@ struct ResultsSummaryView: View {
         let formatter = DateFormatter()
         formatter.timeStyle = .short
         return "\(formatter.string(from: range.lowerBound)) - \(formatter.string(from: range.upperBound))"
+    }
+    
+    private func formatDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .none
+        return formatter.string(from: date)
     }
 }
 

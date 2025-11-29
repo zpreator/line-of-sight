@@ -197,7 +197,7 @@ struct MapSelectionView: View {
                                 .foregroundColor(.white)
                                 .padding(.horizontal, 20)
                                 .padding(.vertical, 12)
-                                .background(.blue, in: Capsule())
+                                .background(Color.accentColor, in: Capsule())
                             }
                             .shadow(color: .black.opacity(0.2), radius: 8, y: 4)
                         }
@@ -226,6 +226,10 @@ struct MapSelectionView: View {
                         )
                         .padding(.bottom, geometry.safeAreaInsets.bottom)
                         .transition(.move(edge: .bottom).combined(with: .opacity))
+                    }
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        viewModel.dismissCalculationSheet()
                     }
                     .ignoresSafeArea()
                 }

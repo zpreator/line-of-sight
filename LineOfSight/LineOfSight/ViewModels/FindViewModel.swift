@@ -363,7 +363,46 @@ class FindViewModel: ObservableObject {
     /// View results after calculation
     func viewCalculationResults() {
         showCalculationSheet = false
-        // Results are already on the map
+        
+        // Calculate region to show all intersection points and the selected location
+        guard let location = selectedLocation else { return }
+        
+        if minuteIntersections.isEmpty {
+            // Just center on the selected location
+            mapRegion = MKCoordinateRegion(
+                center: location.coordinate,
+                span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
+            )
+            return
+        }
+        
+        // Find the bounding box that contains all intersection points and the selected location
+        var minLat = location.coordinate.latitude
+        var maxLat = location.coordinate.latitude
+        var minLon = location.coordinate.longitude
+        var maxLon = location.coordinate.longitude
+        
+        for intersection in minuteIntersections {
+            minLat = min(minLat, intersection.coordinate.latitude)
+            maxLat = max(maxLat, intersection.coordinate.latitude)
+            minLon = min(minLon, intersection.coordinate.longitude)
+            maxLon = max(maxLon, intersection.coordinate.longitude)
+        }
+        
+        // Calculate center and span
+        let centerLat = (minLat + maxLat) / 2
+        let centerLon = (minLon + maxLon) / 2
+        let spanLat = (maxLat - minLat) * 1.3 // Add 30% padding
+        let spanLon = (maxLon - minLon) * 1.3
+        
+        // Ensure minimum span for visibility
+        let finalSpanLat = max(spanLat, 0.01)
+        let finalSpanLon = max(spanLon, 0.01)
+        
+        mapRegion = MKCoordinateRegion(
+            center: CLLocationCoordinate2D(latitude: centerLat, longitude: centerLon),
+            span: MKCoordinateSpan(latitudeDelta: finalSpanLat, longitudeDelta: finalSpanLon)
+        )
     }
     
     /// Save calculation to history
