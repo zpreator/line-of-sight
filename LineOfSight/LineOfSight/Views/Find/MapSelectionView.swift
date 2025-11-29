@@ -435,6 +435,10 @@ struct InteractiveMapView: UIViewRepresentable {
                 annotationView.canShowCallout = true
                 annotationView.displayPriority = .defaultLow
                 
+                // Add detail disclosure button for navigation options
+                let button = UIButton(type: .detailDisclosure)
+                annotationView.rightCalloutAccessoryView = button
+                
                 return annotationView
             }
             
@@ -454,6 +458,102 @@ struct InteractiveMapView: UIViewRepresentable {
             }
             
             return nil
+        }
+        
+        func mapView(_ mapView: MKMapView, annotationView view: MKAnnotationView, calloutAccessoryControlTapped control: UIControl) {
+            guard let intersectionAnnotation = view.annotation as? MinuteIntersectionAnnotation else { return }
+            
+            // Show action sheet for the intersection point
+            let coordinate = intersectionAnnotation.coordinate
+            let actionSheet = UIAlertController(title: intersectionAnnotation.title, message: intersectionAnnotation.subtitle, preferredStyle: .actionSheet)
+            
+            // Open in Apple Maps
+            actionSheet.addAction(UIAlertAction(title: "Open in Maps", style: .default) { _ in
+                self.openInAppleMaps(coordinate: coordinate, title: intersectionAnnotation.title)
+            })
+            
+            // Open in Google Maps
+            actionSheet.addAction(UIAlertAction(title: "Open in Google Maps", style: .default) { _ in
+                self.openInGoogleMaps(coordinate: coordinate)
+            })
+            
+            // Copy Address
+            actionSheet.addAction(UIAlertAction(title: "Copy Address", style: .default) { _ in
+                self.copyAddress(coordinate: coordinate)
+            })
+            
+            // Copy Coordinates
+            actionSheet.addAction(UIAlertAction(title: "Copy Coordinates", style: .default) { _ in
+                let coordinateString = String(format: "%.6f, %.6f", coordinate.latitude, coordinate.longitude)
+                UIPasteboard.general.string = coordinateString
+            })
+            
+            actionSheet.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+            
+            // Present from the map view's window
+            if let windowScene = mapView.window?.windowScene,
+               let rootViewController = windowScene.windows.first?.rootViewController {
+                var topController = rootViewController
+                while let presentedViewController = topController.presentedViewController {
+                    topController = presentedViewController
+                }
+                
+                // For iPad, set source view
+                if let popover = actionSheet.popoverPresentationController {
+                    popover.sourceView = view
+                    popover.sourceRect = view.bounds
+                }
+                
+                topController.present(actionSheet, animated: true)
+            }
+        }
+        
+        private func openInAppleMaps(coordinate: CLLocationCoordinate2D, title: String?) {
+            let placemark = MKPlacemark(coordinate: coordinate)
+            let mapItem = MKMapItem(placemark: placemark)
+            mapItem.name = title ?? "Location"
+            mapItem.openInMaps(launchOptions: [MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeDriving])
+        }
+        
+        private func openInGoogleMaps(coordinate: CLLocationCoordinate2D) {
+            let googleMapsURL = URL(string: "comgooglemaps://?q=\(coordinate.latitude),\(coordinate.longitude)&center=\(coordinate.latitude),\(coordinate.longitude)&zoom=14")
+            let webURL = URL(string: "https://www.google.com/maps?q=\(coordinate.latitude),\(coordinate.longitude)")
+            
+            if let googleMapsURL = googleMapsURL, UIApplication.shared.canOpenURL(googleMapsURL) {
+                UIApplication.shared.open(googleMapsURL)
+            } else if let webURL = webURL {
+                UIApplication.shared.open(webURL)
+            }
+        }
+        
+        private func copyAddress(coordinate: CLLocationCoordinate2D) {
+            let geocoder = CLGeocoder()
+            let location = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
+            
+            geocoder.reverseGeocodeLocation(location) { placemarks, error in
+                if let placemark = placemarks?.first {
+                    var addressComponents: [String] = []
+                    
+                    if let name = placemark.name { addressComponents.append(name) }
+                    if let thoroughfare = placemark.thoroughfare { addressComponents.append(thoroughfare) }
+                    if let locality = placemark.locality { addressComponents.append(locality) }
+                    if let administrativeArea = placemark.administrativeArea { addressComponents.append(administrativeArea) }
+                    if let postalCode = placemark.postalCode { addressComponents.append(postalCode) }
+                    if let country = placemark.country { addressComponents.append(country) }
+                    
+                    let address = addressComponents.isEmpty ? String(format: "%.6f, %.6f", coordinate.latitude, coordinate.longitude) : addressComponents.joined(separator: ", ")
+                    
+                    DispatchQueue.main.async {
+                        UIPasteboard.general.string = address
+                    }
+                } else {
+                    // Fallback to coordinates if geocoding fails
+                    let coordinateString = String(format: "%.6f, %.6f", coordinate.latitude, coordinate.longitude)
+                    DispatchQueue.main.async {
+                        UIPasteboard.general.string = coordinateString
+                    }
+                }
+            }
         }
     }
 }
