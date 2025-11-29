@@ -113,9 +113,21 @@ class FindViewModel: ObservableObject {
             return
         }
         
-        // If still no location, start location updates and show error
-        locationService.startLocationUpdates()
-        errorMessage = "Getting your location..."
+        // If still no location, fetch it asynchronously
+        Task {
+            do {
+                errorMessage = "Getting your location..."
+                let location = try await locationService.getCurrentLocation()
+                currentUserLocation = location
+                mapRegion = MKCoordinateRegion(
+                    center: location.coordinate,
+                    span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
+                )
+                errorMessage = nil
+            } catch {
+                errorMessage = "Error getting your location: \(error.localizedDescription)"
+            }
+        }
     }
     
     /// Calculate terrain-aware sun alignment path

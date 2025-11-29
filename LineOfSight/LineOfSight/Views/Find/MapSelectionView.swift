@@ -673,7 +673,6 @@ struct DatePickerView: View {
                 DatePicker(
                     "Select Date",
                     selection: $selectedDate,
-                    in: Date()...,
                     displayedComponents: [.date]
                 )
                 .datePickerStyle(.graphical)
