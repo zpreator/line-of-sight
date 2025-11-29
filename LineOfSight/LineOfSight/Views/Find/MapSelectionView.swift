@@ -17,6 +17,7 @@ struct MapSelectionView: View {
     @State private var showingDatePicker = false
     @State private var isSearching = false
     @State private var hasResults = false
+    @State private var mapType: MKMapType = .standard
     
     init(calculationStore: CalculationStore, selectedTab: Binding<Int>) {
         self.calculationStore = calculationStore
@@ -32,6 +33,7 @@ struct MapSelectionView: View {
                 selectedLocation: viewModel.selectedLocation,
                 minuteIntersections: viewModel.minuteIntersections,
                 hasResults: hasResults,
+                mapType: $mapType,
                 onLocationSelected: { coordinate in
                     viewModel.selectLocation(at: coordinate)
                 }
@@ -39,123 +41,107 @@ struct MapSelectionView: View {
             .ignoresSafeArea()
             
             // Overlay Controls
-            VStack {
-                // Search Bar or Compact Top Control Bar
-                if isSearching {
-                    LocationSearchBar(
-                        isSearching: $isSearching,
-                        regionBias: viewModel.mapRegion
-                    ) { mapItem in
-                        handleSearchSelection(mapItem)
-                    }
-                    .padding(.horizontal)
-                    .padding(.top)
-                    .transition(.move(edge: .top).combined(with: .opacity))
-                } else {
-                    // Compact horizontal toolbar
-                    HStack(spacing: 8) {
-                        // Search Button
-                        Button(action: {
-                            withAnimation(.spring(response: 0.3)) {
-                                isSearching = true
-                            }
-                        }) {
-                            HStack(spacing: 6) {
-                                Image(systemName: "magnifyingglass")
-                                    .font(.body)
-                                if viewModel.selectedLocation == nil {
-                                    Text("Search")
-                                        .font(.subheadline)
-                                }
-                            }
-                            .foregroundColor(.primary)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 8)
-                            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+            HStack(alignment: .top, spacing: 0) {
+                // Left side - Search and controls
+                VStack(alignment: .leading) {
+                    // Search Bar or Compact Top Control Bar
+                    if isSearching {
+                        LocationSearchBar(
+                            isSearching: $isSearching,
+                            regionBias: viewModel.mapRegion
+                        ) { mapItem in
+                            handleSearchSelection(mapItem)
                         }
-                        .buttonStyle(.plain)
-                        .disabled(hasResults)
-                        .opacity(hasResults ? 0.5 : 1.0)
-                        
-                        // Celestial Object Dropdown
-                        Button(action: { showingCelestialObjectPicker = true }) {
-                            HStack(spacing: 4) {
-                                Image(systemName: viewModel.selectedCelestialObject.type.icon)
-                                    .font(.body)
-                                Image(systemName: "chevron.down")
-                                    .font(.caption2)
-                                    .foregroundColor(.secondary)
-                            }
-                            .foregroundColor(.primary)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 8)
-                            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
-                        }
-                        .buttonStyle(.plain)
-                        .disabled(hasResults)
-                        .opacity(hasResults ? 0.5 : 1.0)
-                        
-                        // Date Dropdown
-                        Button(action: { showingDatePicker = true }) {
-                            HStack(spacing: 4) {
-                                Text(formatCompactDate(viewModel.targetDate))
-                                    .font(.subheadline)
-                                Image(systemName: "chevron.down")
-                                    .font(.caption2)
-                                    .foregroundColor(.secondary)
-                            }
-                            .foregroundColor(.primary)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 8)
-                            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
-                        }
-                        .buttonStyle(.plain)
-                        .disabled(hasResults)
-                        .opacity(hasResults ? 0.5 : 1.0)
-                        
-                        Spacer()
-                        
-                        // New Calculation Button (when results exist)
-                        if hasResults {
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                    } else {
+                        // Compact horizontal toolbar
+                        HStack(spacing: 8) {
+                            // Search Button
                             Button(action: {
-                                clearResults()
-                            }) {
-                                HStack(spacing: 4) {
-                                    Image(systemName: "plus")
-                                        .font(.body.weight(.semibold))
-                                    Text("New")
-                                        .font(.subheadline.weight(.medium))
+                                withAnimation(.spring(response: 0.3)) {
+                                    isSearching = true
                                 }
-                                .foregroundColor(.white)
+                            }) {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "magnifyingglass")
+                                        .font(.body)
+                                    if viewModel.selectedLocation == nil {
+                                        Text("Search")
+                                            .font(.subheadline)
+                                    }
+                                }
+                                .foregroundColor(.primary)
                                 .padding(.horizontal, 12)
                                 .padding(.vertical, 8)
-                                .background(Color.accentColor, in: RoundedRectangle(cornerRadius: 8))
+                                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
                             }
                             .buttonStyle(.plain)
-                            .transition(.scale.combined(with: .opacity))
-                        }
-                        
-                        // User Location Button
-                        Button(action: viewModel.centerOnUserLocation) {
-                            Image(systemName: "location.circle.fill")
-                                .font(.body)
+                            .disabled(hasResults)
+                            .opacity(hasResults ? 0.5 : 1.0)
+                            
+                            // Celestial Object Dropdown
+                            Button(action: { showingCelestialObjectPicker = true }) {
+                                HStack(spacing: 4) {
+                                    Image(systemName: viewModel.selectedCelestialObject.type.icon)
+                                        .font(.body)
+                                    Image(systemName: "chevron.down")
+                                        .font(.caption2)
+                                        .foregroundColor(.secondary)
+                                }
                                 .foregroundColor(.primary)
-                                .frame(width: 36, height: 36)
-                                .background(.regularMaterial, in: Circle())
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 8)
+                                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+                            }
+                            .buttonStyle(.plain)
+                            .disabled(hasResults)
+                            .opacity(hasResults ? 0.5 : 1.0)
+                            
+                            // Date Dropdown
+                            Button(action: { showingDatePicker = true }) {
+                                HStack(spacing: 4) {
+                                    Text(formatCompactDate(viewModel.targetDate))
+                                        .font(.subheadline)
+                                    Image(systemName: "chevron.down")
+                                        .font(.caption2)
+                                        .foregroundColor(.secondary)
+                                }
+                                .foregroundColor(.primary)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 8)
+                                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+                            }
+                            .buttonStyle(.plain)
+                            .disabled(hasResults)
+                            .opacity(hasResults ? 0.5 : 1.0)
+                        }
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                    }
+                    
+                    // New Calculation Button (when results exist)
+                    if hasResults {
+                        Button(action: {
+                            clearResults()
+                        }) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "plus")
+                                    .font(.body.weight(.semibold))
+                                Text("New")
+                                    .font(.subheadline.weight(.medium))
+                            }
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(Color.accentColor, in: RoundedRectangle(cornerRadius: 8))
                         }
                         .buttonStyle(.plain)
+                        .transition(.scale.combined(with: .opacity))
+                        .padding(.top, 8)
                     }
-                    .padding(.horizontal)
-                    .padding(.top)
-                    .transition(.move(edge: .top).combined(with: .opacity))
-                }
-                
-                Spacer()
-                
-                // Bottom Action Area
-                HStack {
+                    
                     Spacer()
                     
+                    // Bottom Action Buttons (centered)
                     VStack(spacing: 12) {
                         // Calculate Button (when location selected but no results)
                         if viewModel.selectedLocation != nil && !hasResults {
@@ -202,9 +188,26 @@ struct MapSelectionView: View {
                             .shadow(color: .black.opacity(0.2), radius: 8, y: 4)
                         }
                     }
-                    .padding(.trailing)
+                    .frame(maxWidth: .infinity) // Take full width for proper centering
                     .padding(.bottom, 20)
                 }
+                .padding(.top)
+                
+                Spacer()
+                
+                // Right Side Controls (stacked vertically)
+                VStack(spacing: 0) {
+                    Spacer()
+                    
+                    // Combined Map Control Menu at bottom
+                    MapControlMenu(
+                        mapType: $mapType,
+                        onLocationTap: viewModel.centerOnUserLocation
+                    )
+                    .padding(.bottom, 20)
+                }
+                .padding(.trailing)
+                .padding(.top)
             }
             
             // Calculation Progress Sheet
@@ -340,6 +343,7 @@ struct InteractiveMapView: UIViewRepresentable {
     let selectedLocation: Location?
     let minuteIntersections: [MinuteIntersection]
     let hasResults: Bool
+    @Binding var mapType: MKMapType
     let onLocationSelected: (CLLocationCoordinate2D) -> Void
     
     func makeUIView(context: Context) -> MKMapView {
@@ -347,6 +351,7 @@ struct InteractiveMapView: UIViewRepresentable {
         mapView.delegate = context.coordinator
         mapView.showsUserLocation = true
         mapView.userTrackingMode = .none
+        mapView.showsCompass = true
         
         // Add tap gesture recognizer
         let tapGesture = UITapGestureRecognizer(
@@ -361,6 +366,11 @@ struct InteractiveMapView: UIViewRepresentable {
     func updateUIView(_ mapView: MKMapView, context: Context) {
         // Update coordinator's hasResults flag
         context.coordinator.hasResults = hasResults
+        
+        // Update map type if needed
+        if mapView.mapType != mapType {
+            mapView.mapType = mapType
+        }
         
         // Update region if needed
         if !mapView.region.isEqual(to: region, tolerance: 0.001) {
@@ -1114,6 +1124,118 @@ struct EmptyStateCard: View {
         }
         .padding()
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+    }
+}
+
+// MARK: - Map Control Menu
+
+struct MapControlMenu: View {
+    @Binding var mapType: MKMapType
+    let onLocationTap: () -> Void
+    @State private var isExpanded = false
+    
+    var currentMapIcon: String {
+        switch mapType {
+        case .standard:
+            return "map"
+        case .satellite:
+            return "globe.americas.fill"
+        case .hybrid:
+            return "map.fill"
+        default:
+            return "map"
+        }
+    }
+    
+    var body: some View {
+        VStack(spacing: 4) {
+            if isExpanded {
+                // Map Type Options (shown when expanded)
+                VStack(spacing: 4) {
+                    // Standard Map
+                    if mapType != .standard {
+                        Button(action: {
+                            withAnimation(.spring(response: 0.3)) {
+                                mapType = .standard
+                            }
+                        }) {
+                            Image(systemName: "map")
+                                .font(.body)
+                                .foregroundColor(.primary)
+                                .frame(width: 40, height: 40)
+                                .background(.regularMaterial, in: Circle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    
+                    // Satellite Map
+                    if mapType != .satellite {
+                        Button(action: {
+                            withAnimation(.spring(response: 0.3)) {
+                                mapType = .satellite
+                            }
+                        }) {
+                            Image(systemName: "globe.americas.fill")
+                                .font(.body)
+                                .foregroundColor(.primary)
+                                .frame(width: 40, height: 40)
+                                .background(.regularMaterial, in: Circle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    
+                    // Hybrid Map
+                    if mapType != .hybrid {
+                        Button(action: {
+                            withAnimation(.spring(response: 0.3)) {
+                                mapType = .hybrid
+                            }
+                        }) {
+                            Image(systemName: "map.fill")
+                                .font(.body)
+                                .foregroundColor(.primary)
+                                .frame(width: 40, height: 40)
+                                .background(.regularMaterial, in: Circle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .transition(.scale.combined(with: .opacity))
+            }
+            
+            // Separator line when expanded
+            if isExpanded {
+                Rectangle()
+                    .fill(Color.secondary.opacity(0.3))
+                    .frame(height: 1)
+                    .frame(width: 30)
+                    .padding(.vertical, 4)
+            }
+            
+            // Current Map Type Button (toggle expand)
+            Button(action: {
+                withAnimation(.spring(response: 0.3)) {
+                    isExpanded.toggle()
+                }
+            }) {
+                Image(systemName: currentMapIcon)
+                    .font(.body)
+                    .foregroundColor(isExpanded ? .accentColor : .primary)
+                    .frame(width: 40, height: 40)
+                    .background(.regularMaterial, in: Circle())
+            }
+            .buttonStyle(.plain)
+            
+            // User Location Button (at bottom)
+            Button(action: onLocationTap) {
+                Image(systemName: "location.circle.fill")
+                    .font(.body)
+                    .foregroundColor(.primary)
+                    .frame(width: 40, height: 40)
+                    .background(.regularMaterial, in: Circle())
+            }
+            .buttonStyle(.plain)
+        }
     }
 }
 
