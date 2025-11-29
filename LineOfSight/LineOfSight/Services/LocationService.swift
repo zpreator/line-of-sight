@@ -161,8 +161,29 @@ extension LocationService: @preconcurrency CLLocationManagerDelegate {
     }
     
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
-        locationError = LocationError.locationUnavailable(error.localizedDescription)
-        isUpdatingLocation = false
+        // Handle CLError specifically
+        if let clError = error as? CLError {
+            switch clError.code {
+            case .locationUnknown:
+                // This is a transient error - location is temporarily unavailable
+                // The location manager will keep trying, so we don't need to report it
+                // Don't set locationError or stop updates
+                return
+            case .denied:
+                locationError = .permissionDenied
+                isUpdatingLocation = false
+                locationManager.stopUpdatingLocation()
+            case .network:
+                // Network-related error, but location manager will keep trying
+                // Only log for debugging, don't show to user
+                return
+            default:
+                // Other errors - report them but don't stop trying
+                locationError = LocationError.locationUnavailable(error.localizedDescription)
+            }
+        } else {
+            locationError = LocationError.locationUnavailable(error.localizedDescription)
+        }
     }
     
     func locationManager(_ manager: CLLocationManager, didChangeAuthorization status: CLAuthorizationStatus) {
@@ -175,7 +196,8 @@ extension LocationService: @preconcurrency CLLocationManagerDelegate {
                 locationManager.startUpdatingLocation()
             }
         case .denied, .restricted:
-            locationError = .permissionDenied
+            // Don't set error here - this gets called during app lifecycle transitions
+            // The UI will handle showing appropriate prompts when user tries to use location
             isUpdatingLocation = false
             locationManager.stopUpdatingLocation()
         case .notDetermined:

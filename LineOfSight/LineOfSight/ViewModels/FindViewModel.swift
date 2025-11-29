@@ -94,6 +94,27 @@ class FindViewModel: ObservableObject {
     
     /// Center map on user's current location
     func centerOnUserLocation() {
+        // Check authorization status first
+        let authStatus = locationService.authorizationStatus
+        
+        // If not determined, request permission
+        if authStatus == .notDetermined {
+            locationService.requestLocationPermission()
+            // Try to get location after requesting
+            Task {
+                errorMessage = "Requesting location permission..."
+                try? await Task.sleep(nanoseconds: 500_000_000) // Wait 0.5s for permission prompt
+                await attemptToGetLocation()
+            }
+            return
+        }
+        
+        // If denied, show helpful message
+        if authStatus == .denied || authStatus == .restricted {
+            errorMessage = "Location access is disabled. Please enable it in Settings to use this feature."
+            return
+        }
+        
         // First try to use the cached location
         if let userLocation = currentUserLocation {
             mapRegion = MKCoordinateRegion(
@@ -115,17 +136,27 @@ class FindViewModel: ObservableObject {
         
         // If still no location, fetch it asynchronously
         Task {
-            do {
-                errorMessage = "Getting your location..."
-                let location = try await locationService.getCurrentLocation()
-                currentUserLocation = location
-                mapRegion = MKCoordinateRegion(
-                    center: location.coordinate,
-                    span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
-                )
-                errorMessage = nil
-            } catch {
-                errorMessage = "Error getting your location: \(error.localizedDescription)"
+            await attemptToGetLocation()
+        }
+    }
+    
+    /// Helper function to attempt getting location
+    private func attemptToGetLocation() async {
+        do {
+            errorMessage = "Getting your location..."
+            let location = try await locationService.getCurrentLocation()
+            currentUserLocation = location
+            mapRegion = MKCoordinateRegion(
+                center: location.coordinate,
+                span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
+            )
+            errorMessage = nil
+        } catch {
+            // Check if it's a permission issue
+            if locationService.authorizationStatus == .denied || locationService.authorizationStatus == .restricted {
+                errorMessage = "Location access is disabled. Please enable it in Settings to use this feature."
+            } else {
+                errorMessage = "Unable to get your location. Please try again."
             }
         }
     }
@@ -534,13 +565,25 @@ class FindViewModel: ObservableObject {
                         span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
                     )
                 }
+                
+                // Clear any transient location errors when we get a valid location
+                if location != nil {
+                    self?.errorMessage = nil
+                }
             }
             .store(in: &cancellables)
         
         locationService.$locationError
             .receive(on: DispatchQueue.main)
             .sink { [weak self] error in
-                self?.errorMessage = error?.localizedDescription
+                // Don't show location errors as alerts
+                // If the user needs location, they can tap the location button
+                // and we'll handle the permission request there
+                // This prevents annoying errors when switching apps or during transient issues
+                
+                // Silently clear the error - we don't want to show alerts
+                // The user can always manually request location via the UI
+                self?.errorMessage = nil
             }
             .store(in: &cancellables)
     }

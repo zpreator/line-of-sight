@@ -498,10 +498,33 @@ struct InteractiveMapView: UIViewRepresentable {
                     topController = presentedViewController
                 }
                 
-                // For iPad, set source view
+                // For iPad, set source view with proper positioning
                 if let popover = actionSheet.popoverPresentationController {
-                    popover.sourceView = view
-                    popover.sourceRect = view.bounds
+                    // Use the map view as source to ensure proper positioning
+                    popover.sourceView = mapView
+                    
+                    // Calculate a safe rect centered on the annotation but within the map bounds
+                    // Convert annotation coordinate to map point
+                    let annotationPoint = mapView.convert(intersectionAnnotation.coordinate, toPointTo: mapView)
+                    
+                    // Create a small rect around the annotation point
+                    let rectSize: CGFloat = 40
+                    var sourceRect = CGRect(
+                        x: annotationPoint.x - rectSize / 2,
+                        y: annotationPoint.y - rectSize / 2,
+                        width: rectSize,
+                        height: rectSize
+                    )
+                    
+                    // Ensure the rect is within the map bounds to prevent off-screen popovers
+                    let mapBounds = mapView.bounds
+                    sourceRect.origin.x = max(rectSize, min(sourceRect.origin.x, mapBounds.width - rectSize * 2))
+                    sourceRect.origin.y = max(rectSize, min(sourceRect.origin.y, mapBounds.height - rectSize * 2))
+                    
+                    popover.sourceRect = sourceRect
+                    
+                    // Allow UIKit to adjust the popover position automatically
+                    popover.permittedArrowDirections = .any
                 }
                 
                 topController.present(actionSheet, animated: true)
