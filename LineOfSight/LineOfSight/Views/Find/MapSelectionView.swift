@@ -233,7 +233,12 @@ struct MapSelectionView: View {
                         if viewModel.selectedLocation != nil && !hasResults {
                             Button(action: {
                                 Task {
-                                    await viewModel.calculateMinuteIntersections()
+                                    // Call appropriate calculation based on mode
+                                    if calculationMode == .horizon {
+                                        await viewModel.calculateHorizonEvents()
+                                    } else {
+                                        await viewModel.calculateMinuteIntersections()
+                                    }
                                     hasResults = true
                                 }
                             }) {
@@ -303,15 +308,29 @@ struct MapSelectionView: View {
                         
                         // Show different sheet based on calculation mode
                         if calculationMode == .horizon {
-                            // Mock Horizon Results Sheet
+                            // Horizon Results Sheet with real data
                             HorizonResultsSheet(
                                 observerLocation: viewModel.selectedLocation?.name ?? "Selected Location",
                                 date: viewModel.targetDate,
                                 celestialObject: viewModel.selectedCelestialObject,
-                                events: [
-                                    HorizonEvent(type: .rise, time: Calendar.current.date(byAdding: .hour, value: -3, to: Date()) ?? Date(), azimuth: 94.5, terrainElevation: 12.3, distance: 8420),
-                                    HorizonEvent(type: .set, time: Calendar.current.date(byAdding: .hour, value: 5, to: Date()) ?? Date(), azimuth: 246.8, terrainElevation: 8.7, distance: 12340)
-                                ],
+                                events: viewModel.horizonEvents.map { detail in
+                                    // Map HorizonEventType to HorizonEvent.EventType
+                                    let eventType: HorizonEvent.EventType
+                                    switch detail.type {
+                                    case .rise:
+                                        eventType = .rise
+                                    case .set:
+                                        eventType = .set
+                                    }
+                                    
+                                    return HorizonEvent(
+                                        type: eventType,
+                                        time: detail.time,
+                                        azimuth: detail.azimuth,
+                                        terrainElevation: detail.terrainElevation,
+                                        distance: detail.distance
+                                    )
+                                },
                                 onViewResults: {
                                     viewModel.viewCalculationResults()
                                 },

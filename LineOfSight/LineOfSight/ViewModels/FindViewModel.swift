@@ -34,8 +34,12 @@ class FindViewModel: ObservableObject {
     private let demService = DEMService()
     private let sunPathService = SunPathService()
     private let terrainIntersector = TerrainIntersector()
+    private let horizonCalculationService = HorizonCalculationService()
     private var cancellables = Set<AnyCancellable>()
     private weak var calculationStore: CalculationStore?
+    
+    // Horizon calculation results
+    @Published var horizonEvents: [HorizonEventDetail] = []
     
     @Published var showSaveDialog = false
     @Published var saveName = ""
@@ -379,6 +383,106 @@ class FindViewModel: ObservableObject {
                     closestDistance: 0,
                     farthestDistance: 0
                 ))
+            }
+        }
+    }
+    
+    /// Calculate horizon rise/set events for the selected location
+    func calculateHorizonEvents() async {
+        print("🟢 [FindViewModel] calculateHorizonEvents() called")
+        
+        guard let location = selectedLocation else {
+            print("❌ [FindViewModel] No location selected!")
+            return
+        }
+        
+        print("🟢 [FindViewModel] Location: \(location.name ?? "Unknown") at \(location.coordinate)")
+        print("🟢 [FindViewModel] Date: \(targetDate)")
+        print("🟢 [FindViewModel] Object: \(selectedCelestialObject.name)")
+        
+        isLoading = true
+        errorMessage = nil
+        showCalculationSheet = true
+        horizonEvents = []
+        
+        // Show initial progress
+        calculationState = .calculating(CalculationProgress(
+            currentStep: .preparingSunPositions,
+            sunPositionsCalculated: 0,
+            totalSunPositions: 288,  // 24 hours / 5 min intervals
+            intersectionsFound: 0,
+            totalIntersectionsProcessed: 0
+        ))
+        
+        print("🟢 [FindViewModel] Starting calculation service...")
+        
+        do {
+            let result = try await horizonCalculationService.calculateHorizonEvents(
+                observer: location,
+                date: targetDate,
+                object: selectedCelestialObject
+            ) { progress in
+                await MainActor.run {
+                    let samplesProcessed = Int(progress * 288)
+                    self.calculationState = .calculating(CalculationProgress(
+                        currentStep: .calculatingIntersections,
+                        sunPositionsCalculated: 288,
+                        totalSunPositions: 288,
+                        intersectionsFound: 0,
+                        totalIntersectionsProcessed: samplesProcessed
+                    ))
+                }
+            }
+            
+            print("🟢 [FindViewModel] Calculation service returned with \(result.events.count) events")
+            
+            await MainActor.run {
+                self.horizonEvents = result.events
+                self.isLoading = false
+                
+                print("🟢 [FindViewModel] Set horizonEvents array to \(result.events.count) items")
+                
+                // Create summary for completed state
+                if !result.events.isEmpty {
+                    let distances = result.events.map { $0.distance }
+                    let avgDistance = distances.reduce(0, +) / Double(distances.count)
+                    let minDistance = distances.min() ?? 0
+                    let maxDistance = distances.max() ?? 0
+                    
+                    let times = result.events.map { $0.time }
+                    let timeRange = times.min()!...times.max()!
+                    
+                    self.calculationState = .completed(CalculationSummary(
+                        poiName: location.name ?? "Selected Location",
+                        date: targetDate,
+                        celestialObject: selectedCelestialObject,
+                        totalIntersections: result.events.count,
+                        timeRange: timeRange,
+                        averageDistance: avgDistance,
+                        closestDistance: minDistance,
+                        farthestDistance: maxDistance
+                    ))
+                } else {
+                    print("⚠️ [FindViewModel] No events found, setting empty summary")
+                    self.calculationState = .completed(CalculationSummary(
+                        poiName: location.name ?? "Selected Location",
+                        date: targetDate,
+                        celestialObject: selectedCelestialObject,
+                        totalIntersections: 0,
+                        timeRange: nil,
+                        averageDistance: 0,
+                        closestDistance: 0,
+                        farthestDistance: 0
+                    ))
+                }
+            }
+        } catch {
+            print("❌ [FindViewModel] Error during calculation: \(error)")
+            print("❌ [FindViewModel] Error localized: \(error.localizedDescription)")
+            await MainActor.run {
+                self.isLoading = false
+                self.errorMessage = error.localizedDescription
+                self.calculationState = nil
             }
         }
     }
