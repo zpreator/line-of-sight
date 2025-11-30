@@ -625,10 +625,11 @@ class MinuteIntersectionAnnotation: NSObject, MKAnnotation {
     }
     
     var subtitle: String? {
-        return String(format: "Sun: %.1f° Az, %.1f° El • %.1f km",
+        let distanceStr = UnitFormatter.formatDistance(intersection.distance, useMetric: UnitFormatter.isMetric())
+        return String(format: "Sun: %.1f° Az, %.1f° El • %@",
                      intersection.sunAzimuth,
                      intersection.sunElevation,
-                     intersection.distance / 1000)
+                     distanceStr)
     }
     
     init(intersection: MinuteIntersection) {
@@ -693,7 +694,7 @@ struct LocationInfoCard: View {
             
             VStack(alignment: .leading, spacing: 4) {
                 HStack {
-                    Label(String(format: "%.0fm elevation (DEM)", location.elevation), systemImage: "mountain.2")
+                    Label(String(format: "%@ elevation (DEM)", UnitFormatter.formatElevation(location.elevation, useMetric: UnitFormatter.useMetersForElevation())), systemImage: "mountain.2")
                         .font(.caption)
                         .foregroundColor(.secondary)
                     
@@ -1091,7 +1092,7 @@ struct BestTimeCard: View {
                 Label(String(format: "%.1f°", event.elevation), systemImage: "arrow.up")
                 Label(String(format: "%.0f°", event.azimuth), systemImage: "safari")
                 Spacer()
-                Label(String(format: "%.1fkm", event.distance / 1000), systemImage: "ruler")
+                Label(UnitFormatter.formatDistance(event.distance, useMetric: UnitFormatter.isMetric()), systemImage: "ruler")
             }
             .font(.caption)
             .foregroundColor(.secondary)

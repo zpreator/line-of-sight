@@ -84,10 +84,7 @@ struct HistoryView: View {
 
 struct SettingsView: View {
     @AppStorage("accentColor") private var accentColorName: String = "orange"
-    @AppStorage("mapType") private var mapType: String = "standard"
-    @AppStorage("showCoordinates") private var showCoordinates: Bool = true
-    @AppStorage("distanceUnit") private var distanceUnit: String = "metric"
-    @AppStorage("elevationUnit") private var elevationUnit: String = "meters"
+    @AppStorage("units") private var units: String = "metric"
     
     private var accentColor: Color {
         switch accentColorName {
@@ -124,39 +121,16 @@ struct SettingsView: View {
                     Text("Changes the accent color used throughout the app")
                 }
                 
-                // Map Settings Section
-                Section {
-                    Picker("Map Type", selection: $mapType) {
-                        Label("Standard", systemImage: "map")
-                            .tag("standard")
-                        Label("Satellite", systemImage: "globe.americas.fill")
-                            .tag("satellite")
-                        Label("Hybrid", systemImage: "map.fill")
-                            .tag("hybrid")
-                    }
-                    
-                    Toggle("Show Coordinates", isOn: $showCoordinates)
-                } header: {
-                    Text("Map")
-                } footer: {
-                    Text("Configure map display preferences")
-                }
-                
                 // Units Section
                 Section {
-                    Picker("Distance Unit", selection: $distanceUnit) {
-                        Text("Metric (km)").tag("metric")
-                        Text("Imperial (mi)").tag("imperial")
-                    }
-                    
-                    Picker("Elevation Unit", selection: $elevationUnit) {
-                        Text("Meters").tag("meters")
-                        Text("Feet").tag("feet")
+                    Picker("Units", selection: $units) {
+                        Text("Metric (km, m)").tag("metric")
+                        Text("Imperial (mi, ft)").tag("imperial")
                     }
                 } header: {
                     Text("Units")
                 } footer: {
-                    Text("Choose your preferred units for measurements")
+                    Text("Choose your preferred measurement system")
                 }
                 
                 // About Section

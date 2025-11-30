@@ -336,11 +336,7 @@ struct ResultsSummaryView: View {
     }
     
     private func formatDistance(_ meters: Double) -> String {
-        if meters < 1000 {
-            return String(format: "%.0fm", meters)
-        } else {
-            return String(format: "%.1fkm", meters / 1000)
-        }
+        return UnitFormatter.formatDistance(meters, useMetric: UnitFormatter.isMetric())
     }
     
     private func formatTimeRange(_ range: ClosedRange<Date>) -> String {
