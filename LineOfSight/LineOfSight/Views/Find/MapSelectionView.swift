@@ -9,6 +9,49 @@ import SwiftUI
 import MapKit
 import UIKit
 
+// MARK: - Calculation Mode
+
+enum CalculationMode: String, CaseIterable {
+    case alignment = "Alignment"
+    case horizon = "Horizon"
+    
+    var icon: String {
+        switch self {
+        case .alignment:
+            return "scope"
+        case .horizon:
+            return "sunrise.fill"
+        }
+    }
+    
+    var description: String {
+        switch self {
+        case .alignment:
+            return "Find where the sun aligns with a target"
+        case .horizon:
+            return "Find when the sun rises/sets over terrain"
+        }
+    }
+    
+    var mapPrompt: String {
+        switch self {
+        case .alignment:
+            return "Tap map to select target location"
+        case .horizon:
+            return "Tap map to set observation point"
+        }
+    }
+    
+    var calculateButtonLabel: String {
+        switch self {
+        case .alignment:
+            return "Calculate"
+        case .horizon:
+            return "Find Rise/Set"
+        }
+    }
+}
+
 struct MapSelectionView: View {
     let calculationStore: CalculationStore
     @Binding var selectedTab: Int
@@ -18,6 +61,7 @@ struct MapSelectionView: View {
     @State private var isSearching = false
     @State private var hasResults = false
     @State private var mapType: MKMapType = .standard
+    @State private var calculationMode: CalculationMode = .alignment
     
     init(calculationStore: CalculationStore, selectedTab: Binding<Int>) {
         self.calculationStore = calculationStore
@@ -34,6 +78,7 @@ struct MapSelectionView: View {
                 minuteIntersections: viewModel.minuteIntersections,
                 hasResults: hasResults,
                 mapType: $mapType,
+                calculationMode: calculationMode,
                 onLocationSelected: { coordinate in
                     viewModel.selectLocation(at: coordinate)
                 }
@@ -42,6 +87,24 @@ struct MapSelectionView: View {
             
             // Overlay Controls
             VStack(alignment: .leading) {
+                // Mode Picker
+                if !hasResults {
+                    Picker("Mode", selection: $calculationMode) {
+                        ForEach(CalculationMode.allCases, id: \.self) { mode in
+                            Text(mode.rawValue)
+                                .tag(mode)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .padding(.horizontal, 60)
+                    .onChange(of: calculationMode) { _ in
+                        // Clear selection when switching modes
+                        if viewModel.selectedLocation != nil && !hasResults {
+                            viewModel.selectedLocation = nil
+                        }
+                    }
+                }
+                
                 // Search Bar or Compact Top Control Bar
                 if isSearching {
                     LocationSearchBar(
@@ -76,6 +139,29 @@ struct MapSelectionView: View {
                         .buttonStyle(.plain)
                         .disabled(hasResults)
                         .opacity(hasResults ? 0.5 : 1.0)
+                        
+                        // Use Current Location Button (only in horizon mode)
+                        if calculationMode == .horizon {
+                            Button(action: {
+                                viewModel.centerOnUserLocation()
+                                if let userLocation = viewModel.currentUserLocation {
+                                    viewModel.selectLocation(
+                                        at: userLocation.coordinate,
+                                        name: "Current Location"
+                                    )
+                                }
+                            }) {
+                                Image(systemName: "location.fill")
+                                    .font(.body)
+                                    .foregroundColor(.primary)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 8)
+                                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+                            }
+                            .buttonStyle(.plain)
+                            .disabled(hasResults)
+                            .opacity(hasResults ? 0.5 : 1.0)
+                        }
                         
                         // Celestial Object Dropdown
                         Button(action: { showingCelestialObjectPicker = true }) {
@@ -152,8 +238,8 @@ struct MapSelectionView: View {
                                 }
                             }) {
                                 HStack(spacing: 8) {
-                                    Image(systemName: "scope")
-                                    Text("Calculate")
+                                    Image(systemName: calculationMode.icon)
+                                    Text(calculationMode.calculateButtonLabel)
                                 }
                                 .font(.subheadline.weight(.semibold))
                                 .foregroundColor(.white)
@@ -174,7 +260,8 @@ struct MapSelectionView: View {
                                 HStack(spacing: 8) {
                                     Image(systemName: "chart.bar.fill")
                                     Text("Results")
-                                    if !viewModel.minuteIntersections.isEmpty {
+                                    // Only show count in alignment mode
+                                    if calculationMode == .alignment && !viewModel.minuteIntersections.isEmpty {
                                         Text("(\(viewModel.minuteIntersections.count))")
                                             .font(.caption)
                                     }
@@ -213,20 +300,47 @@ struct MapSelectionView: View {
                 GeometryReader { geometry in
                     VStack {
                         Spacer()
-                        CalculationProgressSheet(
-                            state: state,
-                            onDismiss: {
-                                viewModel.dismissCalculationSheet()
-                            },
-                            onViewResults: {
-                                viewModel.viewCalculationResults()
-                            },
-                            onSave: {
-                                viewModel.saveCalculation()
-                            }
-                        )
-                        .padding(.bottom, geometry.safeAreaInsets.bottom)
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                        
+                        // Show different sheet based on calculation mode
+                        if calculationMode == .horizon {
+                            // Mock Horizon Results Sheet
+                            HorizonResultsSheet(
+                                observerLocation: viewModel.selectedLocation?.name ?? "Selected Location",
+                                date: viewModel.targetDate,
+                                celestialObject: viewModel.selectedCelestialObject,
+                                events: [
+                                    HorizonEvent(type: .rise, time: Calendar.current.date(byAdding: .hour, value: -3, to: Date()) ?? Date(), azimuth: 94.5, terrainElevation: 12.3, distance: 8420),
+                                    HorizonEvent(type: .set, time: Calendar.current.date(byAdding: .hour, value: 5, to: Date()) ?? Date(), azimuth: 246.8, terrainElevation: 8.7, distance: 12340)
+                                ],
+                                onViewResults: {
+                                    viewModel.viewCalculationResults()
+                                },
+                                onSave: {
+                                    viewModel.saveCalculation()
+                                },
+                                onDismiss: {
+                                    viewModel.dismissCalculationSheet()
+                                }
+                            )
+                            .padding(.bottom, geometry.safeAreaInsets.bottom)
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                        } else {
+                            // Original Alignment Results Sheet
+                            CalculationProgressSheet(
+                                state: state,
+                                onDismiss: {
+                                    viewModel.dismissCalculationSheet()
+                                },
+                                onViewResults: {
+                                    viewModel.viewCalculationResults()
+                                },
+                                onSave: {
+                                    viewModel.saveCalculation()
+                                }
+                            )
+                            .padding(.bottom, geometry.safeAreaInsets.bottom)
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                        }
                     }
                     .contentShape(Rectangle())
                     .onTapGesture {
@@ -342,6 +456,7 @@ struct InteractiveMapView: UIViewRepresentable {
     let minuteIntersections: [MinuteIntersection]
     let hasResults: Bool
     @Binding var mapType: MKMapType
+    let calculationMode: CalculationMode
     let onLocationSelected: (CLLocationCoordinate2D) -> Void
     
     func makeUIView(context: Context) -> MKMapView {
@@ -403,6 +518,10 @@ struct InteractiveMapView: UIViewRepresentable {
             self.hasResults = parent.hasResults
         }
         
+        var calculationMode: CalculationMode {
+            return parent.calculationMode
+        }
+        
         @objc func handleMapTap(_ gesture: UITapGestureRecognizer) {
             // Don't allow new location selection if results exist
             guard !hasResults else { return }
@@ -457,8 +576,17 @@ struct InteractiveMapView: UIViewRepresentable {
                     ?? MKMarkerAnnotationView(annotation: annotation, reuseIdentifier: identifier)
                 
                 annotationView.annotation = annotation
-                annotationView.markerTintColor = .red
-                annotationView.glyphImage = UIImage(systemName: "mappin")
+                
+                // Different styling based on calculation mode
+                switch calculationMode {
+                case .alignment:
+                    annotationView.markerTintColor = .red
+                    annotationView.glyphImage = UIImage(systemName: "mappin")
+                case .horizon:
+                    annotationView.markerTintColor = .systemBlue
+                    annotationView.glyphImage = UIImage(systemName: "eye.fill")
+                }
+                
                 annotationView.canShowCallout = true
                 annotationView.displayPriority = .required
                 
@@ -1238,6 +1366,302 @@ struct MapControlMenu: View {
     }
 }
 
+// MARK: - Horizon Results View
+
+/// Mock data structure for horizon calculations
+struct HorizonEvent: Identifiable {
+    let id = UUID()
+    let type: EventType
+    let time: Date
+    let azimuth: Double
+    let terrainElevation: Double
+    let distance: Double
+    
+    enum EventType {
+        case rise
+        case set
+        case transit  // For objects that may cross horizon multiple times
+        
+        var icon: String {
+            switch self {
+            case .rise: return "sunrise.fill"
+            case .set: return "sunset.fill"
+            case .transit: return "arrow.up.circle.fill"
+            }
+        }
+        
+        var label: String {
+            switch self {
+            case .rise: return "Rise"
+            case .set: return "Set"
+            case .transit: return "Visible"
+            }
+        }
+        
+        var color: Color {
+            switch self {
+            case .rise: return .orange
+            case .set: return .purple
+            case .transit: return .blue
+            }
+        }
+    }
+}
+
+struct HorizonResultsSheet: View {
+    let observerLocation: String
+    let date: Date
+    let celestialObject: CelestialObject
+    let events: [HorizonEvent]
+    let onViewResults: () -> Void
+    let onSave: () -> Void
+    let onDismiss: () -> Void
+    
+    @State private var dragOffset: CGFloat = 0
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            // Handle
+            RoundedRectangle(cornerRadius: 3)
+                .fill(Color.secondary.opacity(0.3))
+                .frame(width: 36, height: 5)
+                .padding(.top, 8)
+                .padding(.bottom, 16)
+                .gesture(
+                    DragGesture()
+                        .onChanged { value in
+                            if value.translation.height > 0 {
+                                dragOffset = value.translation.height
+                            }
+                        }
+                        .onEnded { value in
+                            if value.translation.height > 50 {
+                                onDismiss()
+                            }
+                            dragOffset = 0
+                        }
+                )
+            
+            ScrollView {
+                VStack(spacing: 20) {
+                    // Success Icon
+                    ZStack {
+                        Circle()
+                            .fill(Color.green.opacity(0.15))
+                            .frame(width: 60, height: 60)
+                        
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 40))
+                            .foregroundColor(.green)
+                    }
+                    
+                    VStack(spacing: 8) {
+                        Text("Horizon Analysis Complete")
+                            .font(.title2)
+                            .fontWeight(.semibold)
+                        
+                        Text(observerLocation)
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    // Date and Celestial Object
+                    HStack(spacing: 16) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "calendar")
+                                .foregroundColor(.secondary)
+                                .font(.caption)
+                            Text(formatDate(date))
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        
+                        HStack(spacing: 6) {
+                            Image(systemName: celestialObject.type.icon)
+                                .foregroundColor(.secondary)
+                                .font(.caption)
+                            Text(celestialObject.name)
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    .padding(.top, 4)
+                    
+                    // Summary Stats
+                    HStack(spacing: 20) {
+                        StatCard(
+                            icon: "chart.line.uptrend.xyaxis",
+                            value: "\(events.count)",
+                            label: "Events"
+                        )
+                        
+                        if let firstRise = events.first(where: { $0.type == .rise }) {
+                            StatCard(
+                                icon: "clock",
+                                value: formatTime(firstRise.time),
+                                label: "First Rise"
+                            )
+                        }
+                    }
+                    
+                    // Events List
+                    if !events.isEmpty {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Horizon Events")
+                                .font(.headline)
+                                .padding(.horizontal, 4)
+                            
+                            ForEach(events) { event in
+                                HorizonEventCard(event: event)
+                            }
+                        }
+                        .padding(.top, 8)
+                    } else {
+                        EmptyStateCard(
+                            icon: "moon.stars",
+                            title: "No Events Today",
+                            description: "The \(celestialObject.name.lowercased()) does not rise or set at this location on this date."
+                        )
+                    }
+                    
+                    // Action Buttons
+                    if !events.isEmpty {
+                        VStack(spacing: 12) {
+                            Button(action: onViewResults) {
+                                HStack {
+                                    Image(systemName: "map")
+                                    Text("View on Map")
+                                }
+                                .font(.headline)
+                                .foregroundColor(.white)
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .background(Color.accentColor)
+                                .clipShape(RoundedRectangle(cornerRadius: 12))
+                            }
+                            
+                            HStack(spacing: 12) {
+                                Button(action: onSave) {
+                                    HStack {
+                                        Image(systemName: "square.and.arrow.down")
+                                        Text("Save")
+                                    }
+                                    .font(.subheadline)
+                                    .foregroundColor(.accentColor)
+                                    .frame(maxWidth: .infinity)
+                                    .padding()
+                                    .background(Color.accentColor.opacity(0.1))
+                                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                                }
+                                
+                                Button(action: onDismiss) {
+                                    HStack {
+                                        Image(systemName: "xmark")
+                                        Text("Dismiss")
+                                    }
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+                                    .frame(maxWidth: .infinity)
+                                    .padding()
+                                    .background(Color.secondary.opacity(0.1))
+                                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                                }
+                            }
+                        }
+                        .padding(.top, 8)
+                    }
+                }
+                .padding(.horizontal, 20)
+                .padding(.bottom, 20)
+            }
+        }
+        .background(.ultraThinMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 20))
+        .shadow(color: .black.opacity(0.2), radius: 20, y: -5)
+        .offset(y: dragOffset)
+    }
+    
+    private func formatDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        return formatter.string(from: date)
+    }
+    
+    private func formatTime(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.timeStyle = .short
+        return formatter.string(from: date)
+    }
+}
+
+struct HorizonEventCard: View {
+    let event: HorizonEvent
+    
+    var body: some View {
+        HStack(spacing: 16) {
+            // Event Type Icon
+            ZStack {
+                Circle()
+                    .fill(event.type.color.opacity(0.15))
+                    .frame(width: 50, height: 50)
+                
+                Image(systemName: event.type.icon)
+                    .font(.title3)
+                    .foregroundColor(event.type.color)
+            }
+            
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text(event.type.label)
+                        .font(.headline)
+                    
+                    Spacer()
+                    
+                    Text(formatTime(event.time))
+                        .font(.headline)
+                        .foregroundColor(event.type.color)
+                }
+                
+                HStack(spacing: 12) {
+                    Label(String(format: "%.0f°", event.azimuth), systemImage: "safari")
+                    Label(String(format: "%.0f°", event.terrainElevation), systemImage: "mountain.2")
+                    Label(UnitFormatter.formatDistance(event.distance, useMetric: UnitFormatter.isMetric()), systemImage: "ruler")
+                }
+                .font(.caption)
+                .foregroundColor(.secondary)
+            }
+        }
+        .padding()
+        .background(.regularMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+    
+    private func formatTime(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.timeStyle = .short
+        return formatter.string(from: date)
+    }
+}
+
 #Preview {
     MapSelectionView(calculationStore: CalculationStore(), selectedTab: .constant(0))
+}
+
+// MARK: - Horizon Results Preview
+
+#Preview("Horizon Results") {
+    let sampleEvents = [
+        HorizonEvent(type: .rise, time: Date().addingTimeInterval(-3600 * 3), azimuth: 94.5, terrainElevation: 12.3, distance: 8420),
+        HorizonEvent(type: .set, time: Date().addingTimeInterval(3600 * 5), azimuth: 246.8, terrainElevation: 8.7, distance: 12340)
+    ]
+    
+    return HorizonResultsSheet(
+        observerLocation: "Francis Peak",
+        date: Date(),
+        celestialObject: .sun,
+        events: sampleEvents,
+        onViewResults: {},
+        onSave: {},
+        onDismiss: {}
+    )
 }
